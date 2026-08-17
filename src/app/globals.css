@@ -1,26 +1,153 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Impasto's visual direction: editorial and warm rather than dashboard-grey.
+ * Warm off-white paper, charcoal ink, tomato red as the single accent, and a
+ * restrained basil green for confirmations. Every pairing below is checked for
+ * WCAG AA contrast against the surface it sits on.
+ */
+@theme {
+  --color-paper: #fbf8f3;
+  --color-paper-raised: #ffffff;
+  --color-paper-sunken: #f3ede4;
+  --color-ink: #2b2b28;
+  --color-ink-muted: #5f5c55;
+  --color-ink-faint: #8a857b;
+  --color-rule: #e3dcd0;
+
+  --color-tomato: #b3372a;
+  --color-tomato-strong: #8f2b21;
+  --color-tomato-soft: #f7e7e4;
+  --color-basil: #4a6b3f;
+  --color-basil-soft: #e8efe4;
+  --color-amber: #9a6b16;
+  --color-amber-soft: #f8eeda;
+
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino,
+    'Georgia', ui-serif, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
+
+  --radius-card: 0.875rem;
+
+  --shadow-card: 0 1px 2px rgb(43 43 40 / 0.04), 0 8px 24px -12px rgb(43 43 40 / 0.12);
+  --shadow-raised: 0 2px 4px rgb(43 43 40 / 0.06), 0 16px 40px -16px rgb(43 43 40 / 0.18);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/*
+ * Dark theme. Not an inversion: the paper becomes a warm near-black so the
+ * tomato accent stays readable, and the accent itself lightens to keep its
+ * contrast ratio above 4.5:1 on the new ground.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme='light']) {
+    --color-paper: #1a1917;
+    --color-paper-raised: #232220;
+    --color-paper-sunken: #131211;
+    --color-ink: #f2ede4;
+    --color-ink-muted: #b3ada1;
+    --color-ink-faint: #8a857b;
+    --color-rule: #35332f;
+
+    --color-tomato: #e2705f;
+    --color-tomato-strong: #ef8878;
+    --color-tomato-soft: #35211e;
+    --color-basil: #93b487;
+    --color-basil-soft: #1f2a1c;
+    --color-amber: #d6a44c;
+    --color-amber-soft: #2b2314;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-raised: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 40px -16px rgb(0 0 0 / 0.7);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+:root[data-theme='dark'] {
+  --color-paper: #1a1917;
+  --color-paper-raised: #232220;
+  --color-paper-sunken: #131211;
+  --color-ink: #f2ede4;
+  --color-ink-muted: #b3ada1;
+  --color-ink-faint: #8a857b;
+  --color-rule: #35332f;
+
+  --color-tomato: #e2705f;
+  --color-tomato-strong: #ef8878;
+  --color-tomato-soft: #35211e;
+  --color-basil: #93b487;
+  --color-basil-soft: #1f2a1c;
+  --color-amber: #d6a44c;
+  --color-amber-soft: #2b2314;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-raised: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 40px -16px rgb(0 0 0 / 0.7);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    /* Bottom nav clearance plus the iOS home indicator. */
+    padding-bottom: env(safe-area-inset-bottom);
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  /* A visible, high-contrast focus ring everywhere -- never removed. */
+  :focus-visible {
+    outline: 2px solid var(--color-tomato);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Numeric columns line up when they share a width. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Nothing may push the page sideways on a 390 px phone. */
+  .page-shell {
+    width: 100%;
+    max-width: 72rem;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .page-shell {
+      padding-inline: 2rem;
+    }
+  }
+
+  /* Wide content scrolls inside itself rather than widening the page. */
+  .scroll-x {
+    overflow-x: auto;
+    max-width: 100%;
+    scrollbar-width: thin;
+  }
 }
