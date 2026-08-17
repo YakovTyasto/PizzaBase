@@ -126,3 +126,17 @@ export function formatTemperature(
   const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
   return `${formatted}°${unit.toUpperCase()}`
 }
+
+/**
+ * Video timecode as "m:ss" or "h:mm:ss". Lives here rather than beside the
+ * transcript provider so client components can use it without pulling a
+ * `server-only` module into the browser bundle.
+ */
+export function formatTimecode(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const secs = total % 60
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`
+}
