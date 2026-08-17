@@ -116,7 +116,7 @@ function buildItem(
   let available: Amount | null = null
   let toBuy: Amount | null = required
 
-  if (required && rawAvailable && canCombine(required, rawAvailable, density)) {
+  if (required && isNumeric(required) && rawAvailable && canCombine(required, rawAvailable, density)) {
     available = convertAmount(rawAvailable, required.unit, density)
     toBuy = subtractAmount(required, rawAvailable, density)
   }
