@@ -16,7 +16,9 @@
     "test:e2e": "playwright test",
     "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts",
     "seed": "tsx scripts/generate-seed-sql.ts",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "db:verify": "bash scripts/verify-migrations.sh",
+    "icons": "tsx scripts/generate-icons.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
