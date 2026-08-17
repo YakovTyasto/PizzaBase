@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/import'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Label, Textarea } from '@/components/ui/primitives'
+import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { CandidateReview } from './candidate-review'
 
@@ -84,7 +85,7 @@ export function ImportWorkbench({
         <div
           role="tablist"
           aria-label={t('import.title')}
-          className="flex min-w-max gap-1 rounded-full border border-rule p-1"
+          className="flex w-max gap-1 rounded-full border border-rule p-1"
         >
           {TABS.map((option) => (
             <button
@@ -189,13 +190,13 @@ export function ImportWorkbench({
               {t('errors.providerDisabledHint', { key: 'OPENAI_API_KEY' })}
             </p>
             <p className="text-xs text-ink-faint">
-              <a
+              <Link
                 href="/scan"
                 className="inline-flex items-center gap-1 text-tomato underline underline-offset-2"
               >
                 <ExternalLink aria-hidden className="size-3" />
                 {t('scanner.title')}
-              </a>
+              </Link>
             </p>
           </CardBody>
         </Card>

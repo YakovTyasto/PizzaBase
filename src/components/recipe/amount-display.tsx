@@ -50,9 +50,14 @@ export function AmountDisplay({
     <span className={cn('tabular text-sm text-ink', className)}>
       <span className="font-medium">{formatted.value}</span>
       {formatted.unit ? (
-        <span className="ml-1 text-ink-muted">
-          {t(`units.${formatted.unit}`, { count: formatted.count })}
-        </span>
+        // A real space, not just a margin: the amount should read as "75 ml"
+        // when selected, copied or announced by a screen reader.
+        <>
+          {' '}
+          <span className="text-ink-muted">
+            {t(`units.${formatted.unit}`, { count: formatted.count })}
+          </span>
+        </>
       ) : null}
     </span>
   )

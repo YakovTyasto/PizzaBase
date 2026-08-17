@@ -2,27 +2,16 @@
 
 import { CloudOff } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
+import { useOffline } from '@/lib/client-env'
 
 /**
- * Shows connection state so the user knows why a write might be queued. Starts
- * optimistic: `navigator.onLine` is unavailable during SSR, and flashing
- * "offline" on every first paint would be worse than a moment of silence.
+ * Shows connection state so the user knows why a write might fail. Optimistic
+ * on first paint: `navigator.onLine` is unavailable during SSR, and flashing
+ * "offline" on every load would be worse than a moment of silence.
  */
 export function OfflineIndicator() {
   const t = useTranslations('common')
-  const [offline, setOffline] = useState(false)
-
-  useEffect(() => {
-    const update = () => setOffline(!navigator.onLine)
-    update()
-    window.addEventListener('online', update)
-    window.addEventListener('offline', update)
-    return () => {
-      window.removeEventListener('online', update)
-      window.removeEventListener('offline', update)
-    }
-  }, [])
+  const offline = useOffline()
 
   if (!offline) return null
 

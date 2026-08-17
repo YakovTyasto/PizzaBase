@@ -14,9 +14,10 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input } from '@/components/ui/primitives'
+import { useHydrated } from '@/lib/client-env'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import {
@@ -64,55 +65,49 @@ export function CookingMode({
   const t = useTranslations()
   const wakeLock = useWakeLock()
 
-  const [progress, setProgress] = useState<CookProgress | null>(null)
-  const [hydrated, setHydrated] = useState(false)
-
-  // Restore on mount rather than during render: local storage is not available
-  // on the server and reading it during render would break hydration.
-  useEffect(() => {
-    const restored = loadProgress(recipeId)
-    setProgress(
-      restored ?? {
-        recipeId,
-        startedAt: new Date().toISOString(),
-        currentStep: 0,
-        completedStepIds: [],
-        timers: [],
-      },
-    )
-    setHydrated(true)
-  }, [recipeId])
+  // Local storage is unavailable on the server, so the initializer yields a
+  // fresh session there and the restored one in the browser. The two never
+  // reach the DOM together because rendering is gated on `hydrated` below,
+  // which is false for both the server render and the hydration pass.
+  const hydrated = useHydrated()
+  const [progress, setProgress] = useState<CookProgress>(() => ({
+    recipeId,
+    startedAt: new Date().toISOString(),
+    currentStep: 0,
+    completedStepIds: [],
+    timers: [],
+    ...loadProgress(recipeId),
+  }))
 
   const persist = useCallback((next: CookProgress) => {
     setProgress(next)
     saveProgress(next)
   }, [])
 
-  const onTimersChange = useCallback(
-    (timers: CookTimer[]) => {
-      setProgress((current) => {
-        if (!current) return current
-        const next = { ...current, timers }
-        saveProgress(next)
-        return next
-      })
-    },
-    [],
-  )
+  const onTimersChange = useCallback((timers: CookTimer[]) => {
+    setProgress((current) => {
+      const next = { ...current, timers }
+      saveProgress(next)
+      return next
+    })
+  }, [])
 
-  const { timers, add, pause, resume, remove } = useTimers(progress?.timers ?? [], onTimersChange)
+  // Timers live in the restored progress, so they are whatever local storage
+  // gave us -- not a separate copy that would start empty on every mount.
+  const timers = progress.timers
+  const { add, pause, resume, remove } = useTimers(timers, onTimersChange)
   const now = useNow(timers.length > 0)
 
-  const currentIndex = progress?.currentStep ?? 0
+  const currentIndex = progress.currentStep
   const step = steps[Math.min(currentIndex, steps.length - 1)]
   const completed = useMemo(
-    () => new Set(progress?.completedStepIds ?? []),
-    [progress?.completedStepIds],
+    () => new Set(progress.completedStepIds),
+    [progress.completedStepIds],
   )
 
   const [timerMinutes, setTimerMinutes] = useState('')
 
-  if (!hydrated || !progress || !step) {
+  if (!hydrated || !step) {
     return <p className="text-sm text-ink-muted">{t('common.loading')}</p>
   }
 
@@ -297,6 +292,9 @@ export function CookingMode({
                   <Card className={done ? 'border-tomato' : undefined}>
                     <CardBody className="flex items-center gap-3 py-3">
                       <span
+                        role="timer"
+                        aria-label={timer.label}
+                        aria-live="off"
                         className={cn(
                           'tabular text-2xl font-semibold',
                           done ? 'text-tomato' : 'text-ink',

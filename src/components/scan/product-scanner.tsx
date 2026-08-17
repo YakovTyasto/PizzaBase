@@ -2,12 +2,13 @@
 
 import { Camera, Check, Info, Loader2, ScanLine, Upload } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { type ScanResult, lookupBarcodeAction, recognizeImageAction } from '@/app/actions/scan'
 import { addPantryItemAction } from '@/app/actions/pantry'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Label, Select } from '@/components/ui/primitives'
 import type { Unit } from '@/domain'
+import { useBarcodeDetectorSupported } from '@/lib/client-env'
 
 /**
  * Package scanner.
@@ -35,7 +36,7 @@ export function ProductScanner({
   const [barcode, setBarcode] = useState('')
   const [result, setResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [detectorSupported, setDetectorSupported] = useState(false)
+  const detectorSupported = useBarcodeDetectorSupported()
   const [saved, setSaved] = useState(false)
 
   // Review fields the user can correct before anything is saved.
@@ -44,10 +45,6 @@ export function ProductScanner({
   const [unit, setUnit] = useState<Unit>('g')
 
   const fileRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    setDetectorSupported(typeof window !== 'undefined' && 'BarcodeDetector' in window)
-  }, [])
 
   const applyResult = (next: ScanResult) => {
     setResult(next)

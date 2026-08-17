@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useWakeLockSupported } from '@/lib/client-env'
 
 /**
  * Keeps the screen awake while cooking.
@@ -13,12 +14,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  */
 export function useWakeLock() {
   const [enabled, setEnabled] = useState(false)
-  const [supported, setSupported] = useState(true)
+  const supported = useWakeLockSupported()
   const sentinel = useRef<WakeLockSentinel | null>(null)
-
-  useEffect(() => {
-    setSupported(typeof navigator !== 'undefined' && 'wakeLock' in navigator)
-  }, [])
 
   const acquire = useCallback(async () => {
     if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return false

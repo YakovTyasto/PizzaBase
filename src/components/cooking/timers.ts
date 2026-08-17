@@ -108,16 +108,16 @@ export function useNow(active: boolean): number {
   return now
 }
 
-export function useTimers(initial: CookTimer[], onChange: (timers: CookTimer[]) => void) {
-  const [timers, setTimers] = useState<CookTimer[]>(initial)
-
-  const update = useCallback(
-    (next: CookTimer[]) => {
-      setTimers(next)
-      onChange(next)
-    },
-    [onChange],
-  )
+/**
+ * Timer operations over a caller-owned list.
+ *
+ * Deliberately stateless: the timers live in the restored cook progress, which
+ * arrives from local storage in an effect *after* the first render. Holding a
+ * copy in `useState` here would seed it with an empty list and silently drop
+ * every timer on reload.
+ */
+export function useTimers(timers: CookTimer[], onChange: (timers: CookTimer[]) => void) {
+  const update = useCallback((next: CookTimer[]) => onChange(next), [onChange])
 
   const add = useCallback(
     (label: string, minutes: number) => {
@@ -167,5 +167,5 @@ export function useTimers(initial: CookTimer[], onChange: (timers: CookTimer[]) 
     [timers, update],
   )
 
-  return { timers, add, pause, resume, remove }
+  return { add, pause, resume, remove }
 }
