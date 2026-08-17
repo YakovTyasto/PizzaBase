@@ -83,6 +83,13 @@ check_same recipe_translations "${TRANSLATIONS_1}" "${TRANSLATIONS_2}"
 echo "==> Asserting schema invariants"
 "${PSQL[@]}" -d "${DB_NAME}" -v owner_id="'${OWNER_ID}'" -f "${ROOT}/tests/sql/assertions.sql"
 
+echo "==> Exercising save_recipe as the signed-in owner"
+# The authoring tests call auth.uid(), so the session must carry a subject
+# claim exactly as PostgREST would set it for a real request.
+"${PSQL[@]}" -d "${DB_NAME}" \
+  -c "set request.jwt.claim.sub = '${OWNER_ID}';" \
+  -f "${ROOT}/tests/sql/authoring.sql"
+
 echo
 if [ "${fail}" -eq 0 ]; then
   echo "All migration and seed checks passed."

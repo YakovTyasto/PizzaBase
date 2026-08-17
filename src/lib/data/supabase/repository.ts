@@ -16,6 +16,8 @@ import {
 } from '@/domain'
 import { createClient } from '@/lib/supabase/server'
 import { resolveText } from '../localize'
+import type { RecipeDraft } from '../recipe-draft'
+import { validateDraft } from '../recipe-draft'
 import type {
   CategoryView,
   CookSessionView,
@@ -24,8 +26,11 @@ import type {
   PantryItemView,
   RecipeDetail,
   RecipeFilter,
+  OpenQuestionView,
   RecipeSummary,
+  RecipeVersionView,
   Repository,
+  SaveRecipeResult,
   UserSettingsView,
 } from '../types'
 
@@ -1027,5 +1032,564 @@ export class SupabaseRepository implements Repository {
         .upsert({ owner_id: user.id, include_experimental: settings.includeExperimental })
       if (settingsError) throw settingsError
     }
+  }
+
+  // --- Authoring -----------------------------------------------------------
+
+  /**
+   * Writes the whole recipe through the `save_recipe` function, so the eight
+   * tables involved land together or not at all. The function is SECURITY
+   * INVOKER, so RLS still applies to every statement inside it.
+   */
+  async saveRecipe(draft: RecipeDraft): Promise<SaveRecipeResult> {
+    const issues = validateDraft(draft)
+    if (issues.length > 0) {
+      throw new Error(issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '))
+    }
+
+    const supabase = await createClient()
+    const slug = draft.slug?.trim()
+    if (!slug) throw new Error('A recipe slug is required')
+
+    // The RPC takes a flattened amount so the SQL does not have to branch on
+    // the discriminated union.
+    const payload = {
+      ...draft,
+      slug,
+      items: draft.items.map((item, index) => ({
+        ...item,
+        sortOrder: index,
+        amount: flattenAmount(item.amount),
+      })),
+      steps: draft.steps.map((step, index) => ({ ...step, sortOrder: index })),
+    }
+
+    const { data, error } = await supabase.rpc('save_recipe', {
+      p_draft: payload,
+      p_create_version: draft.createVersion,
+    })
+    if (error) throw new Error(error.message)
+
+    const result = data as { slug: string; created: boolean; versionCreated: boolean }
+    return {
+      slug: result.slug,
+      created: result.created,
+      versionCreated: result.versionCreated,
+    }
+  }
+
+  async deleteRecipe(slug: string): Promise<void> {
+    const supabase = await createClient()
+    const { error } = await supabase.from('recipes').delete().eq('slug', slug)
+    if (error) throw new Error(error.message)
+  }
+
+  async getRecipeDraft(slug: string): Promise<RecipeDraft | null> {
+    // The detail projection already resolves everything the editor needs; it is
+    // reshaped here rather than issuing a second, differently-shaped query.
+    const detail = await this.getRecipe('ru', slug)
+    if (!detail) return null
+
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('recipes')
+      .select(
+        `slug, origin_locale,
+         recipe_translations (locale, name, summary, notes),
+         recipe_items (item_key, ingredient_id, component_recipe_id, amount, amount_max,
+                       unit, optional, item_group, sort_order,
+                       ingredients (slug), component:recipes!recipe_items_component_recipe_id_fkey (slug)),
+         recipe_steps (step_key, sort_order, phase, active_minutes, wait_min_minutes,
+                       wait_max_minutes, duration_known, temperature_c, timer_seconds,
+                       recipe_step_translations (locale, instruction, sensory_cues, troubleshooting),
+                       recipe_step_items (recipe_items (item_key)))`,
+      )
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (!data) return null
+    return supabaseRowToDraft(data as never, detail)
+  }
+
+  // --- Versions ------------------------------------------------------------
+
+  async listVersions(recipeId: string): Promise<RecipeVersionView[]> {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('recipe_versions')
+      .select('id, recipe_id, version_number, created_at, is_primary, note')
+      .eq('recipe_id', recipeId)
+      .order('version_number', { ascending: false })
+    if (error) throw new Error(error.message)
+
+    return (data ?? []).map((raw) => {
+      const v = raw as unknown as {
+        id: string
+        recipe_id: string
+        version_number: number
+        created_at: string
+        is_primary: boolean
+        note: string | null
+      }
+      return {
+        id: v.id,
+        recipeId: v.recipe_id,
+        versionNumber: v.version_number,
+        createdAt: v.created_at,
+        isPrimary: v.is_primary,
+        note: v.note,
+      }
+    })
+  }
+
+  async getVersionDraft(versionId: string): Promise<RecipeDraft | null> {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('recipe_versions')
+      .select('snapshot')
+      .eq('id', versionId)
+      .maybeSingle()
+    if (!data) return null
+
+    // Snapshots are stored in the database's own row shape; the comparison
+    // screen only needs the fields the diff renders.
+    return snapshotToDraft((data as { snapshot: unknown }).snapshot)
+  }
+
+  async makeVersionPrimary(versionId: string): Promise<void> {
+    const supabase = await createClient()
+    const { error } = await supabase.rpc('make_version_primary', { p_version_id: versionId })
+    if (error) throw new Error(error.message)
+  }
+
+  // --- Review --------------------------------------------------------------
+
+  async listOpenQuestions(locale: Locale): Promise<OpenQuestionView[]> {
+    const recipes = await this.listRecipes(locale)
+    const questions: OpenQuestionView[] = []
+
+    // Detail is fetched only for recipes the summary already flagged, so a
+    // clean library costs one query rather than one per recipe.
+    for (const summary of recipes) {
+      if (summary.openQuestions === 0 && !summary.hasConflict) continue
+      const detail = await this.getRecipe(locale, summary.slug)
+      if (!detail) continue
+
+      for (const item of detail.items) {
+        if (item.amount.kind !== 'unknown') continue
+        questions.push({
+          id: `${detail.slug}:amount:${item.key}`,
+          recipeId: detail.id,
+          recipeSlug: detail.slug,
+          recipeName: detail.name,
+          itemId: item.id,
+          itemKey: item.key,
+          subject: item.name,
+          field: 'item.amount',
+          reviewState: 'needs_review',
+          conflictGroup: null,
+          note: null,
+          currentAmount: item.amount,
+          kind: 'amount',
+        })
+      }
+
+      for (const evidence of detail.evidence) {
+        if (evidence.reviewState !== 'needs_review' && evidence.reviewState !== 'conflict') {
+          continue
+        }
+        const item = detail.items.find((candidate) => candidate.id === evidence.itemId)
+        if (item && item.amount.kind === 'unknown') continue
+
+        questions.push({
+          id: evidence.id,
+          recipeId: detail.id,
+          recipeSlug: detail.slug,
+          recipeName: detail.name,
+          itemId: evidence.itemId,
+          itemKey: item?.key ?? null,
+          subject: item?.name ?? detail.name,
+          field: evidence.field,
+          reviewState: evidence.reviewState,
+          conflictGroup: evidence.conflictGroup,
+          note: evidence.note,
+          currentAmount: item?.amount ?? null,
+          kind: evidence.field === 'recipe.baseYield' ? 'yield' : item ? 'amount' : 'other',
+        })
+      }
+
+      if (detail.baseYield === null && (detail.type === 'sauce' || detail.type === 'prep')) {
+        questions.push({
+          id: `${detail.slug}:yield`,
+          recipeId: detail.id,
+          recipeSlug: detail.slug,
+          recipeName: detail.name,
+          itemId: null,
+          itemKey: null,
+          subject: detail.name,
+          field: 'recipe.baseYield',
+          reviewState: 'needs_review',
+          conflictGroup: null,
+          note: detail.notes,
+          currentAmount: null,
+          kind: 'yield',
+        })
+      }
+    }
+
+    return questions
+  }
+
+  // --- Ingredients ---------------------------------------------------------
+
+  async createIngredient(input: {
+    names: Record<Locale, string>
+    categorySlug: string
+    measure: string
+    baseUnit: Unit
+    aliases?: string[]
+  }): Promise<string> {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    const slug = slugifyForDb(input.names.en || input.names.ru || input.names.fr)
+
+    const { data: category } = await supabase
+      .from('ingredient_categories')
+      .select('id')
+      .eq('slug', input.categorySlug)
+      .maybeSingle()
+
+    const { data, error } = await supabase
+      .from('ingredients')
+      .insert({
+        owner_id: user.id,
+        slug,
+        category_id: (category as { id: string } | null)?.id ?? null,
+        measure: input.measure,
+        base_unit: input.baseUnit,
+      })
+      .select('id')
+      .single()
+    if (error) throw new Error(error.message)
+
+    const ingredientId = (data as { id: string }).id
+
+    const { error: translationError } = await supabase.from('ingredient_translations').insert(
+      (['ru', 'en', 'fr'] as const).map((locale) => ({
+        ingredient_id: ingredientId,
+        locale,
+        name: input.names[locale] || input.names.en || slug,
+      })),
+    )
+    if (translationError) throw new Error(translationError.message)
+
+    if (input.aliases?.length) {
+      await supabase.from('ingredient_aliases').insert(
+        input.aliases.map((alias) => ({ ingredient_id: ingredientId, locale: null, alias })),
+      )
+    }
+
+    return slug
+  }
+
+  // --- Imports -------------------------------------------------------------
+
+  async hasApprovedImport(idempotencyKey: string): Promise<boolean> {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('approved_imports')
+      .select('idempotency_key')
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle()
+    return Boolean(data)
+  }
+
+  async markImportApproved(idempotencyKey: string): Promise<void> {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    // The primary key makes a concurrent double submit fail rather than
+    // silently producing a second recipe.
+    const { error } = await supabase
+      .from('approved_imports')
+      .insert({ owner_id: user.id, idempotency_key: idempotencyKey })
+    if (error && !error.message.includes('duplicate')) throw new Error(error.message)
+  }
+}
+
+/** Flattens an amount into the columns the RPC expects. */
+function flattenAmount(amount: RecipeDraft['items'][number]['amount']) {
+  switch (amount.kind) {
+    case 'exact':
+      return { kind: 'exact', value: amount.value.replace(',', '.'), max: null, unit: amount.unit }
+    case 'range':
+      return {
+        kind: 'range',
+        value: amount.min.replace(',', '.'),
+        max: amount.max.replace(',', '.'),
+        unit: amount.unit,
+      }
+    case 'qualitative':
+      return { kind: 'qualitative', value: null, max: null, unit: amount.unit }
+    case 'unknown':
+      return { kind: 'unknown', value: null, max: null, unit: null }
+  }
+}
+
+function slugifyForDb(input: string): string {
+  return (
+    input
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || `ingredient-${Date.now()}`
+  )
+}
+
+/** Reconstructs an editor draft from the database's own row shape. */
+function supabaseRowToDraft(
+  row: Record<string, never>,
+  detail: import('../types').RecipeDetail,
+): RecipeDraft {
+  const r = row as unknown as {
+    origin_locale: Locale
+    recipe_translations?: {
+      locale: Locale
+      name: string
+      summary: string | null
+      notes: string | null
+    }[]
+    recipe_items?: {
+      item_key: string | null
+      amount: string | null
+      amount_max: string | null
+      unit: string | null
+      optional: boolean
+      item_group: string | null
+      sort_order: number
+      ingredients?: { slug: string } | null
+      component?: { slug: string } | null
+    }[]
+    recipe_steps?: {
+      step_key: string | null
+      sort_order: number
+      phase: RecipeDraft['steps'][number]['phase']
+      active_minutes: number
+      wait_min_minutes: number
+      wait_max_minutes: number
+      duration_known: boolean
+      temperature_c: string | null
+      timer_seconds: number | null
+      recipe_step_translations?: {
+        locale: Locale
+        instruction: string
+        sensory_cues: string | null
+        troubleshooting: string | null
+      }[]
+      recipe_step_items?: { recipe_items?: { item_key: string | null } | null }[]
+    }[]
+  }
+
+  const byLocale = <T extends string>(
+    rows: { locale: Locale }[] | undefined,
+    field: string,
+  ): Record<Locale, T | string> => {
+    const out = { ru: '', en: '', fr: '' } as Record<Locale, string>
+    for (const entry of rows ?? []) {
+      const value = (entry as unknown as Record<string, unknown>)[field]
+      if (typeof value === 'string') out[entry.locale] = value
+    }
+    return out
+  }
+
+  return {
+    slug: detail.slug,
+    type: detail.type,
+    status: detail.status === 'archived' ? 'draft' : detail.status,
+    authenticity: detail.authenticity,
+    styleSlug: detail.styleId,
+    ovenProfileSlug: detail.ovenProfileId,
+    originLocale: r.origin_locale,
+    baseYield: detail.baseYield,
+    yieldUnit: detail.yieldUnit,
+    baseDiameterMm: detail.baseDiameterMm,
+    baseShape: detail.baseShape,
+    baseTrayWidthMm: detail.baseTrayWidthMm,
+    baseTrayHeightMm: detail.baseTrayHeightMm,
+    baseBallWeightG: detail.baseBallWeightG,
+    activeMinutes: detail.activeMinutes,
+    passiveMinutes: detail.passiveMinutes,
+    difficulty: detail.difficulty,
+    tags: detail.tags,
+    names: byLocale(r.recipe_translations, 'name') as Record<Locale, string>,
+    summaries: byLocale(r.recipe_translations, 'summary') as Record<Locale, string>,
+    notes: byLocale(r.recipe_translations, 'notes') as Record<Locale, string>,
+    items: (r.recipe_items ?? [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((item) => ({
+        key: item.item_key ?? `item-${item.sort_order}`,
+        ingredientSlug: item.ingredients?.slug ?? null,
+        componentSlug: item.component?.slug ?? null,
+        amount: rowToDraftAmount(item.amount, item.amount_max, item.unit),
+        optional: item.optional,
+        group: item.item_group,
+        notes: { ru: '', en: '', fr: '' },
+      })),
+    steps: (r.recipe_steps ?? [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((step) => ({
+        key: step.step_key ?? `step-${step.sort_order}`,
+        phase: step.phase,
+        activeMinutes: step.active_minutes,
+        waitMinMinutes: step.wait_min_minutes,
+        waitMaxMinutes: step.wait_max_minutes,
+        durationKnown: step.duration_known,
+        temperatureC: step.temperature_c === null ? null : Number(step.temperature_c),
+        timerSeconds: step.timer_seconds,
+        itemKeys: (step.recipe_step_items ?? []).flatMap((link) =>
+          link.recipe_items?.item_key ? [link.recipe_items.item_key] : [],
+        ),
+        instructions: byLocale(step.recipe_step_translations, 'instruction') as Record<Locale, string>,
+        cues: byLocale(step.recipe_step_translations, 'sensory_cues') as Record<Locale, string>,
+        troubleshooting: byLocale(
+          step.recipe_step_translations,
+          'troubleshooting',
+        ) as Record<Locale, string>,
+      })),
+    source: detail.source,
+    evidence: detail.evidence.map((entry) => ({
+      field: entry.field,
+      itemKey: detail.items.find((i) => i.id === entry.itemId)?.key ?? null,
+      confidence: entry.confidence,
+      reviewState: entry.reviewState,
+      conflictGroup: entry.conflictGroup,
+      startSeconds: entry.startSeconds,
+      notes: { ru: entry.note.value, en: entry.note.value, fr: entry.note.value },
+    })),
+    media: [],
+    createVersion: false,
+    versionNote: null,
+  }
+}
+
+function rowToDraftAmount(
+  amount: string | null,
+  amountMax: string | null,
+  unit: string | null,
+): RecipeDraft['items'][number]['amount'] {
+  if (!unit) return { kind: 'unknown' }
+  if (amount === null) return { kind: 'qualitative', unit }
+  if (amountMax !== null) return { kind: 'range', min: amount, max: amountMax, unit }
+  return { kind: 'exact', value: amount, unit }
+}
+
+/**
+ * Turns a stored version snapshot into a draft.
+ *
+ * Snapshots hold raw database rows, so this reshapes the parts the comparison
+ * screen renders. Anything it cannot recover comes back empty rather than
+ * invented.
+ */
+function snapshotToDraft(snapshot: unknown): RecipeDraft | null {
+  const snap = snapshot as {
+    recipe?: Record<string, unknown>
+    translations?: { locale: Locale; name?: string; summary?: string; notes?: string }[]
+    items?: {
+      item_key?: string | null
+      amount?: string | null
+      amount_max?: string | null
+      unit?: string | null
+      optional?: boolean
+      item_group?: string | null
+      sort_order?: number
+    }[]
+    steps?: Record<string, unknown>[]
+    step_translations?: { step_id: string; locale: Locale; instruction?: string }[]
+  } | null
+
+  if (!snap?.recipe) return null
+  const recipe = snap.recipe
+
+  const localized = (field: string): Record<Locale, string> => {
+    const out: Record<Locale, string> = { ru: '', en: '', fr: '' }
+    for (const entry of snap.translations ?? []) {
+      const value = (entry as unknown as Record<string, unknown>)[field]
+      if (typeof value === 'string') out[entry.locale] = value
+    }
+    return out
+  }
+
+  const text = (key: string) => {
+    const value = recipe[key]
+    return value === null || value === undefined ? null : String(value)
+  }
+  const int = (key: string) => {
+    const value = recipe[key]
+    return value === null || value === undefined ? null : Number(value)
+  }
+
+  return {
+    slug: text('slug'),
+    type: (recipe.type as RecipeDraft['type']) ?? 'pizza',
+    status: recipe.status === 'archived' ? 'draft' : ((recipe.status as RecipeDraft['status']) ?? 'draft'),
+    authenticity: (recipe.authenticity as RecipeDraft['authenticity']) ?? 'user_verified',
+    styleSlug: null,
+    ovenProfileSlug: null,
+    originLocale: (recipe.origin_locale as Locale) ?? 'ru',
+    baseYield: text('base_yield'),
+    yieldUnit: (text('yield_unit') as RecipeDraft['yieldUnit']) ?? null,
+    baseDiameterMm: int('base_diameter_mm'),
+    baseShape: (text('base_shape') as RecipeDraft['baseShape']) ?? null,
+    baseTrayWidthMm: int('base_tray_width_mm'),
+    baseTrayHeightMm: int('base_tray_height_mm'),
+    baseBallWeightG: text('base_ball_weight_g'),
+    activeMinutes: int('active_minutes'),
+    passiveMinutes: int('passive_minutes'),
+    difficulty: int('difficulty') as RecipeDraft['difficulty'],
+    tags: Array.isArray(recipe.tags) ? (recipe.tags as string[]) : [],
+    names: localized('name'),
+    summaries: localized('summary'),
+    notes: localized('notes'),
+    items: (snap.items ?? [])
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((item, index) => ({
+        key: item.item_key ?? `item-${index}`,
+        // Snapshots hold ids rather than slugs; the diff compares amounts, and
+        // showing an id as an ingredient name would be worse than showing none.
+        ingredientSlug: null,
+        componentSlug: null,
+        amount: rowToDraftAmount(item.amount ?? null, item.amount_max ?? null, item.unit ?? null),
+        optional: item.optional ?? false,
+        group: item.item_group ?? null,
+        notes: { ru: '', en: '', fr: '' },
+      })),
+    steps: (snap.steps ?? []).map((step, index) => ({
+      key: (step.step_key as string) ?? `step-${index}`,
+      phase: (step.phase as RecipeDraft['steps'][number]['phase']) ?? 'other',
+      activeMinutes: Number(step.active_minutes ?? 0),
+      waitMinMinutes: Number(step.wait_min_minutes ?? 0),
+      waitMaxMinutes: Number(step.wait_max_minutes ?? 0),
+      durationKnown: Boolean(step.duration_known ?? true),
+      temperatureC: step.temperature_c === null ? null : Number(step.temperature_c),
+      timerSeconds: step.timer_seconds === null ? null : Number(step.timer_seconds),
+      itemKeys: [],
+      instructions: { ru: '', en: '', fr: '' },
+      cues: { ru: '', en: '', fr: '' },
+      troubleshooting: { ru: '', en: '', fr: '' },
+    })),
+    source: null,
+    evidence: [],
+    media: [],
+    createVersion: false,
+    versionNote: null,
   }
 }

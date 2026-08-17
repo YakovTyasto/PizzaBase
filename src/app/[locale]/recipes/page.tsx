@@ -65,7 +65,7 @@ export default async function RecipesPage({
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-semibold">{t('recipes.title')}</h1>
-        <Link href="/import?tab=manual" className="hidden sm:block">
+        <Link href="/recipes/new" className="hidden sm:block">
           <Button>
             <Plus aria-hidden className="size-4" />
             {t('recipes.create')}
@@ -88,8 +88,8 @@ export default async function RecipesPage({
                 <Button variant="outline">{t('common.clear')}</Button>
               </Link>
             ) : (
-              <Link href="/import">
-                <Button>{t('import.title')}</Button>
+              <Link href="/recipes/new">
+                <Button>{t('recipes.create')}</Button>
               </Link>
             )
           }

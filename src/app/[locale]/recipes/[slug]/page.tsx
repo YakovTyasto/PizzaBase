@@ -1,4 +1,4 @@
-import { CalendarPlus, ChefHat, ExternalLink, Timer } from 'lucide-react'
+import { CalendarPlus, ChefHat, ExternalLink, History, Pencil, Timer } from 'lucide-react'
 import type { Metadata } from 'next'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
@@ -109,6 +109,18 @@ export default async function RecipeDetailPage({
               </Button>
             </Link>
           ) : null}
+          <Link href={`/recipes/${recipe.slug}/edit`}>
+            <Button variant="outline">
+              <Pencil aria-hidden />
+              {t('common.edit')}
+            </Button>
+          </Link>
+          <Link href={`/recipes/${recipe.slug}/versions`}>
+            <Button variant="outline">
+              <History aria-hidden />
+              {t('versions.title')}
+            </Button>
+          </Link>
         </div>
       </header>
 

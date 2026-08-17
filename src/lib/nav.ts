@@ -1,4 +1,5 @@
 import {
+  BadgeAlert,
   BookOpen,
   CalendarClock,
   ChefHat,
@@ -30,6 +31,7 @@ export const primaryNav: NavItem[] = [
 
 /** Everything else, reachable from the sidebar and the profile menu. */
 export const secondaryNav: NavItem[] = [
+  { href: '/review', labelKey: 'review', icon: BadgeAlert },
   { href: '/shopping', labelKey: 'shopping', icon: ShoppingBasket },
   { href: '/recommendations', labelKey: 'recommendations', icon: Sparkles },
   { href: '/scan', labelKey: 'scanner', icon: ScanLine },

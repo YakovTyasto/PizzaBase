@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
 import type { Metadata } from 'next'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { LocaleSwitcher } from '@/components/layout/locale-switcher'
+import { DemoControls } from '@/components/settings/demo-controls'
 import { Badge, Card, CardBody, DataRow, SectionHeading } from '@/components/ui/primitives'
 import { appConfig } from '@/lib/config/app-config'
 import { configReport } from '@/lib/config/env'
@@ -136,6 +137,11 @@ export default async function SettingsPage({
             </dl>
           </CardBody>
         </Card>
+      </section>
+
+      <section>
+        <SectionHeading>{report.demoMode ? t('settings.demoMode') : t('auth.signIn')}</SectionHeading>
+        <DemoControls demoMode={report.demoMode} />
       </section>
 
       {report.warnings.length > 0 ? (

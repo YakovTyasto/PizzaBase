@@ -1,9 +1,12 @@
 'use client'
 
-import { AlertTriangle, CircleHelp, ExternalLink } from 'lucide-react'
-import { useTranslations } from 'next-intl'
-import { useState } from 'react'
-import type { ImportCandidate } from '@/app/actions/import'
+import { AlertTriangle, CircleHelp, ExternalLink, Loader2, Plus } from 'lucide-react'
+import { useLocale, useTranslations } from 'next-intl'
+import { useEffect, useState, useTransition } from 'react'
+import type { ImportCandidate, IngredientMatchView } from '@/app/actions/import'
+import { approveImportAction, matchImportIngredientsAction } from '@/app/actions/import'
+import { useRouter } from '@/i18n/navigation'
+import { Select } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, SectionHeading } from '@/components/ui/primitives'
 import { formatTimecode } from '@/lib/format'
@@ -24,10 +27,66 @@ export function CandidateReview({
   onDiscard: () => void
 }) {
   const t = useTranslations()
+  const locale = useLocale()
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
   const { extraction, issues } = candidate
 
   // Local edits: filling in an unknown is the point of the review.
   const [amounts, setAmounts] = useState<Record<number, string>>({})
+  const [matches, setMatches] = useState<IngredientMatchView[] | null>(null)
+  const [resolved, setResolved] = useState<Record<string, string>>({})
+  const [createNew, setCreateNew] = useState<string[]>([])
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [catalog, setCatalog] = useState<{ slug: string; name: string }[]>([])
+
+  // Ask the server which catalog entries these names correspond to. Matching
+  // spans every locale and alias, so the same ingredient in another language
+  // resolves to the entry that already exists.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const names = extraction.ingredients.map((ingredient) => ingredient.name)
+      const result = await matchImportIngredientsAction(names)
+      if (cancelled) return
+      setMatches(result)
+      setResolved(
+        Object.fromEntries(
+          result.flatMap((match) => (match.slug ? [[match.extractedName, match.slug]] : [])),
+        ),
+      )
+      setCatalog(
+        result.flatMap((match) =>
+          match.slug && match.suggestedName
+            ? [{ slug: match.slug, name: match.suggestedName }]
+            : [],
+        ),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [extraction])
+
+  const unmatched = extraction.ingredients.filter(
+    (ingredient) => !resolved[ingredient.name] && !createNew.includes(ingredient.name),
+  )
+
+  const approve = () => {
+    setSaveError(null)
+    startTransition(async () => {
+      const result = await approveImportAction({
+        extraction,
+        sourceUrl: candidate.sourceUrl,
+        locale,
+        resolved,
+        createNew,
+      })
+      // Navigate only on a real save; nothing here claims success otherwise.
+      if (result.ok) router.push(`/recipes/${result.slug}`)
+      else setSaveError(result.error)
+    })
+  }
 
   const unknownCount = extraction.ingredients.filter((i) => i.amount.kind === 'unknown').length
   const conflictCount = extraction.conflicts.length
@@ -259,17 +318,94 @@ export function CandidateReview({
             </Card>
           ) : null}
 
+          {/* Ingredient matching: nothing is created without being asked for. */}
+          <Card>
+            <CardBody>
+              <p className="mb-2 text-xs font-medium tracking-wide text-ink-muted uppercase">
+                {t('import.matchIngredient')}
+              </p>
+              {matches === null ? (
+                <p className="text-sm text-ink-muted">{t('common.loading')}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {extraction.ingredients.map((ingredient) => {
+                    const slug = resolved[ingredient.name]
+                    const creating = createNew.includes(ingredient.name)
+                    return (
+                      <li
+                        key={ingredient.name}
+                        className="flex flex-wrap items-center justify-between gap-2"
+                      >
+                        <span className="min-w-0 text-sm text-ink">{ingredient.name}</span>
+                        <span className="flex items-center gap-2">
+                          {slug ? (
+                            <Badge tone="good">{t('import.matched')}</Badge>
+                          ) : creating ? (
+                            <Badge tone="accent">{t('import.createIngredient')}</Badge>
+                          ) : (
+                            <Badge tone="warn">{t('import.unmatched')}</Badge>
+                          )}
+                          <Select
+                            aria-label={ingredient.name}
+                            className="h-9 w-44 text-sm"
+                            value={slug ?? (creating ? '__new__' : '')}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              setCreateNew((current) =>
+                                current.filter((name) => name !== ingredient.name),
+                              )
+                              setResolved((current) => {
+                                const next = { ...current }
+                                delete next[ingredient.name]
+                                if (value && value !== '__new__') next[ingredient.name] = value
+                                return next
+                              })
+                              if (value === '__new__') {
+                                setCreateNew((current) => [...current, ingredient.name])
+                              }
+                            }}
+                          >
+                            <option value="">{t('import.unmatched')}</option>
+                            <option value="__new__">{t('import.createIngredient')}</option>
+                            {catalog.map((entry) => (
+                              <option key={entry.slug} value={entry.slug}>
+                                {entry.name}
+                              </option>
+                            ))}
+                          </Select>
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {unmatched.length > 0 ? (
+                <p className="mt-2 text-xs text-amber">
+                  {t('import.unmatched')}: {unmatched.map((i) => i.name).join(', ')}
+                </p>
+              ) : null}
+            </CardBody>
+          </Card>
+
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={errors.length > 0}
+              onClick={approve}
+              disabled={errors.length > 0 || pending || matches === null}
               title={errors.length > 0 ? errors[0]?.message : undefined}
             >
+              {pending ? <Loader2 aria-hidden className="animate-spin" /> : <Plus aria-hidden />}
               {t('import.approve')}
             </Button>
-            <Button variant="outline" onClick={onDiscard}>
+            <Button variant="outline" onClick={onDiscard} disabled={pending}>
               {t('import.discard')}
             </Button>
           </div>
+
+          {saveError ? (
+            <p role="alert" className="text-sm text-tomato">
+              {saveError}
+            </p>
+          ) : null}
 
           {errors.length > 0 ? (
             <p className="text-xs text-tomato">{t('import.jobFailed')}</p>

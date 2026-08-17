@@ -13,6 +13,7 @@ import type {
   Unit,
 } from '@/domain'
 import type { ReviewState, SourceType } from '@/lib/seed/types'
+import type { RecipeDraft } from './recipe-draft'
 
 /**
  * View models handed to the UI.
@@ -191,6 +192,40 @@ export interface UserSettingsView {
   includeExperimental: boolean
 }
 
+export interface RecipeVersionView {
+  id: string
+  recipeId: string
+  versionNumber: number
+  createdAt: string
+  isPrimary: boolean
+  note: string | null
+}
+
+/** One field that still needs the owner's decision. */
+export interface OpenQuestionView {
+  id: string
+  recipeId: string
+  recipeSlug: string
+  recipeName: LocalizedText
+  /** Which item the question is about, when it is not about the recipe itself. */
+  itemId: string | null
+  itemKey: string | null
+  subject: LocalizedText
+  field: string
+  reviewState: ReviewState
+  conflictGroup: string | null
+  note: LocalizedText | null
+  /** Present when the question is "what amount?", so the UI can offer an input. */
+  currentAmount: Amount | null
+  kind: 'amount' | 'yield' | 'ingredient' | 'other'
+}
+
+export interface SaveRecipeResult {
+  slug: string
+  created: boolean
+  versionCreated: boolean
+}
+
 export interface RecipeFilter {
   query?: string
   type?: RecipeType | null
@@ -235,4 +270,42 @@ export interface Repository {
 
   getSettings(): Promise<UserSettingsView>
   saveSettings(settings: Partial<UserSettingsView>): Promise<void>
+
+  // --- Recipe authoring ----------------------------------------------------
+
+  /**
+   * Creates or replaces a recipe. Implementations must be all-or-nothing: a
+   * failure part-way through must not leave a half-written recipe behind.
+   */
+  saveRecipe(draft: RecipeDraft): Promise<SaveRecipeResult>
+  deleteRecipe(slug: string): Promise<void>
+  /** The draft shape of an existing recipe, for the editor to load. */
+  getRecipeDraft(slug: string): Promise<RecipeDraft | null>
+
+  // --- Versions ------------------------------------------------------------
+
+  listVersions(recipeId: string): Promise<RecipeVersionView[]>
+  getVersionDraft(versionId: string): Promise<RecipeDraft | null>
+  makeVersionPrimary(versionId: string): Promise<void>
+
+  // --- Review --------------------------------------------------------------
+
+  listOpenQuestions(locale: Locale): Promise<OpenQuestionView[]>
+
+  // --- Ingredients ---------------------------------------------------------
+
+  /** Creates a canonical ingredient. Returns the slug it was given. */
+  createIngredient(input: {
+    names: Record<Locale, string>
+    categorySlug: string
+    measure: string
+    baseUnit: Unit
+    aliases?: string[]
+  }): Promise<string>
+
+  // --- Imports -------------------------------------------------------------
+
+  /** True when this import candidate was already approved (double-submit guard). */
+  hasApprovedImport(idempotencyKey: string): Promise<boolean>
+  markImportApproved(idempotencyKey: string): Promise<void>
 }
