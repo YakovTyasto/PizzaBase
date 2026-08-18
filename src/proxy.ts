@@ -20,7 +20,14 @@ const handleI18n = createIntlMiddleware(routing)
 export function proxy(request: Parameters<typeof handleI18n>[0]) {
   const response = handleI18n(request)
 
-  if (isDemoMode()) {
+  // Only real navigations mint. A prefetch or an RSC fetch that happened to
+  // race ahead of the first cookie would otherwise reply with a *different*
+  // id, and the browser would keep whichever response landed last -- pointing
+  // the session at an empty catalog. A document response's cookie is stored
+  // before anything it triggers goes out, so this ordering is safe.
+  const isNavigation = request.headers.get('sec-fetch-dest') === 'document'
+
+  if (isDemoMode() && isNavigation) {
     const existing = request.cookies.get(DEMO_SESSION_COOKIE)?.value
     if (!existing || !isValidSessionId(existing)) {
       response.cookies.set(DEMO_SESSION_COOKIE, globalThis.crypto.randomUUID().replace(/-/g, ''), {

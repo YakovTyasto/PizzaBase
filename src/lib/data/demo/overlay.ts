@@ -128,21 +128,23 @@ function fileFor(sessionId: string): string {
   return path.join(DATA_DIR, `${safe}.json`)
 }
 
-const cache = new Map<string, DemoOverlay>()
-
+/**
+ * Read straight from disk, every time.
+ *
+ * An in-process cache was tempting and wrong: a production server answers
+ * requests from more than one worker, and a worker that had cached a session's
+ * overlay before another worker wrote to it would keep serving the old catalog
+ * — a recipe saved on one request would be missing from the very next page.
+ * The file is small and the OS page cache makes this cheap; correctness is not
+ * negotiable for the screen that shows you what you just saved.
+ */
 export async function readOverlay(sessionId: string): Promise<DemoOverlay> {
-  const cached = cache.get(sessionId)
-  if (cached) return cached
-
   try {
     const raw = await readFile(fileFor(sessionId), 'utf8')
     const parsed = overlaySchema.safeParse(JSON.parse(raw))
     // A malformed or outdated overlay resets rather than crashing every page.
-    const overlay = parsed.success ? parsed.data : EMPTY_OVERLAY
-    cache.set(sessionId, overlay)
-    return overlay
+    return parsed.success ? parsed.data : EMPTY_OVERLAY
   } catch {
-    cache.set(sessionId, EMPTY_OVERLAY)
     return EMPTY_OVERLAY
   }
 }
@@ -155,7 +157,6 @@ export async function writeOverlay(sessionId: string, overlay: DemoOverlay): Pro
   // Write-then-rename: a reader never sees a partially written overlay.
   await writeFile(temp, JSON.stringify(overlay), 'utf8')
   await rename(temp, target)
-  cache.set(sessionId, overlay)
 }
 
 export async function updateOverlay(
@@ -169,7 +170,6 @@ export async function updateOverlay(
 
 /** Discards every local change; the seed catalog reappears untouched. */
 export async function resetOverlay(sessionId: string): Promise<void> {
-  cache.delete(sessionId)
   try {
     await unlink(fileFor(sessionId))
   } catch {

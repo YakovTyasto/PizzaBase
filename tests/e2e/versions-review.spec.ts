@@ -151,7 +151,22 @@ test.describe('the needs-review screen', () => {
     await card.getByLabel('Количество').fill('30')
     await card.getByRole('button', { name: 'Сохранить ответ' }).click()
 
-    await expect(card.getByText('Отвечено')).toBeVisible({ timeout: 20_000 })
+    // Either the card reports it, or the section has gone entirely because
+    // this was the recipe's last open question. Both mean the answer landed;
+    // which one you see depends on whether the revalidation beats the badge.
+    await expect
+      .poll(
+        async () => {
+          const answered = await card.getByText('Отвечено').count()
+          const stillListed = await page
+            .locator('section')
+            .filter({ hasText: 'Соус с вопросом' })
+            .count()
+          return answered > 0 || stillListed === 0
+        },
+        { timeout: 20_000 },
+      )
+      .toBe(true)
 
     // One answer, and the recipe itself now carries the number.
     await page.goto(url)
