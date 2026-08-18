@@ -15,9 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # `engines` in package.json requires >=20.9. 20 is the floor the project
-  # claims to support, so that is what the checks run against.
-  NODE_VERSION: '20'
+  # The dev toolchain sets the floor, not the app. Next runs on 20, but
+  # jsdom 30 -- which the component tests need -- declares
+  # `^22.22.2 || ^24.15.0 || >=26`, and on 20 its workers die on a missing
+  # `webidl.util.markAsUncloneable`. 24 is what the project is developed on.
+  NODE_VERSION: '24'
 
 jobs:
   check:

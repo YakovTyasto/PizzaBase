@@ -1052,8 +1052,9 @@ export class DemoRepository implements Repository {
       // Only a claim is released. A recorded slug is the finished write and
       // must survive.
       if (overlay.appliedMutations[idempotencyKey] !== CLAIMED) return overlay
-      const { [idempotencyKey]: _released, ...rest } = overlay.appliedMutations
-      return { ...overlay, appliedMutations: rest }
+      const remaining = { ...overlay.appliedMutations }
+      delete remaining[idempotencyKey]
+      return { ...overlay, appliedMutations: remaining }
     })
   }
 
