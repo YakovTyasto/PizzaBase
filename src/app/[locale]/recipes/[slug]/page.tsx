@@ -13,6 +13,8 @@ import {
   StatusBadge,
 } from '@/components/recipe/badges'
 import { Button } from '@/components/ui/button'
+import { MediaStrip } from '@/components/media/media-strip'
+import { signRecipeMedia } from '@/lib/data/sign-media'
 import { Badge, Card, CardBody, DataRow, SectionHeading } from '@/components/ui/primitives'
 import { Link } from '@/i18n/navigation'
 import { getRepository } from '@/lib/data'
@@ -46,6 +48,10 @@ export default async function RecipeDetailPage({
   ])
 
   if (!recipe) notFound()
+
+  // Signing happens here, for exactly the photos this page shows, and only
+  // when Supabase is the backend -- in demo mode the client resolves them.
+  const media = await signRecipeMedia(recipe.media)
 
   const ingredientNames = Object.fromEntries(
     ingredients.map((ingredient) => [ingredient.id, ingredient.name.value]),
@@ -86,6 +92,12 @@ export default async function RecipeDetailPage({
 
         {recipe.summary ? (
           <p className="max-w-2xl text-ink-muted">{recipe.summary.value}</p>
+        ) : null}
+
+        {media.length > 0 ? (
+          <div className="max-w-2xl">
+            <MediaStrip media={media} label={t('media.photos')} />
+          </div>
         ) : null}
 
         <div className="flex flex-wrap gap-2">

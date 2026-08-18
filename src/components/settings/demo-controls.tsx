@@ -7,6 +7,7 @@ import { resetDemoDataAction, signOutAction } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/primitives'
 import { useRouter } from '@/i18n/navigation'
+import { clearBlobs } from '@/lib/media/idb'
 
 /**
  * Demo housekeeping.
@@ -60,6 +61,10 @@ export function DemoControls({ demoMode }: { demoMode: boolean }) {
             if (!window.confirm(t('demo.resetConfirm'))) return
             startTransition(async () => {
               await resetDemoDataAction()
+              // The photos live in this browser's IndexedDB, which the server
+              // cannot reach. Resetting has to clear them here or the bytes
+              // would outlive every recipe that referred to them.
+              await clearBlobs()
               setDone(true)
               router.refresh()
             })

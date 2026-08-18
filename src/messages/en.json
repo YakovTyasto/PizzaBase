@@ -499,7 +499,8 @@
       "general": "General",
       "ingredients": "Ingredients",
       "steps": "Steps",
-      "source": "Source"
+      "source": "Source",
+      "photos": "Photos"
     },
     "name": "Name",
     "summary": "Short description",
@@ -584,8 +585,25 @@
   },
   "demo": {
     "reset": "Reset demo data",
-    "resetHint": "Removes every recipe, plan and pantry item you added here and restores the bundled catalog.",
+    "resetHint": "Removes every recipe, plan and pantry item you added here and restores the bundled catalog. Local photos are removed as well.",
     "resetConfirm": "Reset demo data? Everything you created here will be removed.",
     "resetDone": "Demo data reset."
+  },
+  "media": {
+    "add": "Add photos",
+    "none": "No photos yet.",
+    "cover": "Cover",
+    "alt": "Description for accessibility",
+    "altHint": "What the photo shows",
+    "processing": "Processing the photo…",
+    "limit": "Up to {count} photos",
+    "photos": "Photos",
+    "reject": {
+      "too_large": "That file is larger than 8 MB.",
+      "not_an_image": "That is not a JPEG, PNG or WebP.",
+      "heic": "HEIC is not supported. Set your camera to save JPEG, or convert the file with your system tools.",
+      "decode_failed": "That image could not be read.",
+      "too_small": "That image is too small."
+    }
   }
 }

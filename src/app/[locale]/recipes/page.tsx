@@ -1,4 +1,5 @@
 import { Plus, Search } from 'lucide-react'
+import { signCovers } from '@/lib/data/sign-media'
 import type { Metadata } from 'next'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import type {
@@ -53,11 +54,12 @@ export default async function RecipesPage({
     ovenProfileId: single('oven'),
   }
 
-  const [recipes, styles, ovens] = await Promise.all([
+  const [rawRecipes, styles, ovens] = await Promise.all([
     repository.listRecipes(locale as Locale, filter),
     repository.listStyles(locale as Locale),
     repository.listOvenProfiles(locale as Locale),
   ])
+  const recipes = await signCovers(rawRecipes)
 
   const hasFilters = Object.values(filter).some(Boolean)
 

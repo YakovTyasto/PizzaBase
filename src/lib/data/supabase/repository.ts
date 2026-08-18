@@ -16,6 +16,7 @@ import {
 } from '@/domain'
 import { createClient } from '@/lib/supabase/server'
 import { resolveText } from '../localize'
+import type { MediaView } from '@/lib/media/types'
 import type { RecipeDraft } from '../recipe-draft'
 import { validateDraft } from '../recipe-draft'
 import type {
@@ -30,6 +31,7 @@ import type {
   RecipeSummary,
   RecipeVersionView,
   Repository,
+  ExperimentView,
   SaveRecipeResult,
   UserSettingsView,
 } from '../types'
@@ -87,6 +89,8 @@ export class SupabaseRepository implements Repository {
          recipe_sources (source_type, author, title, url, credibility_tier, attribution),
          styles (id, style_translations (locale, name)),
          oven_profiles (id, oven_profile_translations (locale, name)),
+         recipe_media (id, storage_path, external_url, sort_order, is_cover,
+                       recipe_media_translations (locale, alt_text)),
          field_evidence_count:field_evidence (count)`,
       )
       .neq('status', 'archived')
@@ -142,11 +146,15 @@ export class SupabaseRepository implements Repository {
         id: string
         oven_profile_translations?: { locale: Locale; name: string }[]
       } | null
+      recipe_media?: MediaRow[]
     }
 
     const source = r.recipe_sources?.[0]
 
     return {
+      cover: rowsToMedia(r.recipe_media ?? [], locale).find((m) => m.isCover) ??
+        rowsToMedia(r.recipe_media ?? [], locale)[0] ??
+        null,
       id: r.id,
       slug: r.slug,
       type: r.type,
@@ -204,6 +212,8 @@ export class SupabaseRepository implements Repository {
          recipe_sources (source_type, author, title, url, credibility_tier, attribution),
          styles (id, style_translations (locale, name)),
          oven_profiles (id, oven_profile_translations (locale, name)),
+         recipe_media (id, storage_path, external_url, sort_order, is_cover,
+                       recipe_media_translations (locale, alt_text)),
          recipe_items (
            id, ingredient_id, component_recipe_id, amount, amount_max, unit,
            optional, item_group, sort_order, item_key,
@@ -414,6 +424,10 @@ export class SupabaseRepository implements Repository {
 
     return {
       ...summary,
+      media: rowsToMedia(
+        (detail as unknown as { recipe_media?: MediaRow[] }).recipe_media ?? [],
+        locale,
+      ),
       openQuestions:
         evidence.filter(
           (e) => e.reviewState === 'needs_review' || e.reviewState === 'conflict',
@@ -893,8 +907,12 @@ export class SupabaseRepository implements Repository {
     const { data, error } = await supabase
       .from('cook_sessions')
       .select(
-        `id, recipe_id, started_at, finished_at, scale_factor, rating, notes,
+        `id, recipe_id, version_id, started_at, finished_at, scale_factor, rating, notes,
+         taste_rating, crust_rating, handling_rating,
+         actual_active_minutes, actual_passive_minutes, next_time,
          recipes (origin_locale, recipe_translations (locale, name)),
+         recipe_versions (version_number),
+         cook_session_media (id, storage_path, alt_text, sort_order),
          cook_step_progress (step_id, completed_at)`,
       )
       .order('started_at', { ascending: false })
@@ -905,11 +923,25 @@ export class SupabaseRepository implements Repository {
       const s = raw as unknown as {
         id: string
         recipe_id: string
+        version_id: string | null
         started_at: string
         finished_at: string | null
         scale_factor: string
         rating: number | null
+        taste_rating: number | null
+        crust_rating: number | null
+        handling_rating: number | null
+        actual_active_minutes: number | null
+        actual_passive_minutes: number | null
+        next_time: string | null
         notes: string | null
+        recipe_versions?: { version_number: number } | null
+        cook_session_media?: {
+          id: string
+          storage_path: string
+          alt_text: string | null
+          sort_order: number
+        }[]
         recipes?: {
           origin_locale: Locale
           recipe_translations?: { locale: Locale; name: string }[]
@@ -926,14 +958,33 @@ export class SupabaseRepository implements Repository {
               s.recipes.origin_locale,
             )
           : { value: s.recipe_id, fallbackFrom: null },
+        versionId: s.version_id,
+        versionNumber: s.recipe_versions?.version_number ?? null,
         startedAt: s.started_at,
         finishedAt: s.finished_at,
         scaleFactor: s.scale_factor,
         rating: s.rating,
+        tasteRating: s.taste_rating,
+        crustRating: s.crust_rating,
+        handlingRating: s.handling_rating,
+        actualActiveMinutes: s.actual_active_minutes,
+        actualPassiveMinutes: s.actual_passive_minutes,
+        nextTime: s.next_time,
         notes: s.notes,
         completedStepIds: (s.cook_step_progress ?? [])
           .filter((p) => p.completed_at)
           .map((p) => p.step_id),
+        // Signed lazily by the caller that renders them; listing many sessions
+        // must not mint a signed URL for every photo in the history.
+        media: [...(s.cook_session_media ?? [])]
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((photo) => ({
+            id: photo.id,
+            url: null,
+            alt: photo.alt_text,
+            isCover: false,
+            storagePath: photo.storage_path,
+          })),
       }
     })
   }
@@ -951,10 +1002,17 @@ export class SupabaseRepository implements Repository {
         id: session.id || undefined,
         owner_id: user.id,
         recipe_id: session.recipeId,
+        version_id: session.versionId,
         scale_factor: session.scaleFactor,
         started_at: session.startedAt,
         finished_at: session.finishedAt,
         rating: session.rating,
+        taste_rating: session.tasteRating,
+        crust_rating: session.crustRating,
+        handling_rating: session.handlingRating,
+        actual_active_minutes: session.actualActiveMinutes,
+        actual_passive_minutes: session.actualPassiveMinutes,
+        next_time: session.nextTime,
         notes: session.notes,
       })
       .select('id')
@@ -962,6 +1020,24 @@ export class SupabaseRepository implements Repository {
     if (error) throw error
 
     const sessionId = (data as { id: string }).id
+
+    // Photos are replaced wholesale, matching how the recipe editor treats
+    // them: what the screen shows is what is stored.
+    const photos = session.media.filter((photo) => storagePathOf(photo))
+    await supabase.from('cook_session_media').delete().eq('session_id', sessionId)
+    if (photos.length > 0) {
+      const { error: mediaError } = await supabase.from('cook_session_media').insert(
+        photos.map((photo, index) => ({
+          session_id: sessionId,
+          owner_id: user.id,
+          storage_path: storagePathOf(photo)!,
+          alt_text: photo.alt,
+          sort_order: index,
+        })),
+      )
+      if (mediaError) throw mediaError
+    }
+
     if (session.completedStepIds.length === 0) return
 
     const { error: progressError } = await supabase.from('cook_step_progress').upsert(
@@ -1062,9 +1138,13 @@ export class SupabaseRepository implements Repository {
         amount: flattenAmount(item.amount),
       })),
       steps: draft.steps.map((step, index) => ({ ...step, sortOrder: index })),
+      media: draft.media,
     }
 
-    const { data, error } = await supabase.rpc('save_recipe', {
+    // The media-aware wrapper, so the photo rows land in the same transaction
+    // as the recipe: a half-saved recipe with dangling photos is exactly the
+    // partial state the single-function design exists to prevent.
+    const { data, error } = await supabase.rpc('save_recipe_with_media', {
       p_draft: payload,
       p_create_version: draft.createVersion,
     })
@@ -1080,8 +1160,21 @@ export class SupabaseRepository implements Repository {
 
   async deleteRecipe(slug: string): Promise<void> {
     const supabase = await createClient()
+
+    // Collect the objects first: once the rows are gone nothing remembers
+    // which files belonged to this recipe, and they would sit in the bucket
+    // forever, unreachable and still billed for.
+    const { data: paths } = await supabase.rpc('recipe_storage_paths', { p_slug: slug })
+    const orphans = Array.isArray(paths)
+      ? (paths as unknown[]).filter((path): path is string => typeof path === 'string')
+      : []
+
     const { error } = await supabase.from('recipes').delete().eq('slug', slug)
     if (error) throw new Error(error.message)
+
+    // After the row delete commits. The reverse order would risk removing
+    // files for a delete that then failed.
+    await this.deleteMediaObjects(orphans)
   }
 
   async getRecipeDraft(slug: string): Promise<RecipeDraft | null> {
@@ -1312,6 +1405,147 @@ export class SupabaseRepository implements Repository {
     return recipe?.slug ?? null
   }
 
+  // --- Media ---------------------------------------------------------------
+
+  /**
+   * Uploads one prepared image into the private bucket.
+   *
+   * The object is namespaced under the owner's id, which is what the storage
+   * policies key on, so one owner can never read or overwrite another's file.
+   * This runs as the signed-in user -- never the service role -- so an attempt
+   * to write outside that folder is refused by the database rather than by
+   * this code remembering to check.
+   */
+  async uploadMedia(input: {
+    id: string
+    bytes: ArrayBuffer
+    contentType: string
+  }): Promise<{ storagePath: string }> {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    const path = `${user.id}/${input.id}.jpg`
+    const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, input.bytes, {
+      contentType: input.contentType,
+      upsert: true,
+    })
+    if (error) throw new Error(error.message)
+
+    return { storagePath: path }
+  }
+
+  async deleteMediaObjects(storagePaths: string[]): Promise<void> {
+    if (storagePaths.length === 0) return
+    const supabase = await createClient()
+    // Best effort: a file that is already gone is the outcome we wanted, and
+    // failing here would strand the caller mid-cleanup.
+    await supabase.storage.from(MEDIA_BUCKET).remove(storagePaths)
+  }
+
+  // --- Experiments ---------------------------------------------------------
+
+  async listExperiments(locale: Locale): Promise<ExperimentView[]> {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('recipe_experiments')
+      .select(
+        `id, title, recipe_id, version_ids, session_ids, hypothesis, conclusion,
+         winning_version_id, created_at,
+         recipes (slug, origin_locale, recipe_translations (locale, name))`,
+      )
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (error) throw error
+
+    return (data ?? []).map((raw) => {
+      const e = raw as unknown as {
+        id: string
+        title: string | null
+        recipe_id: string
+        version_ids: string[]
+        session_ids: string[]
+        hypothesis: string | null
+        conclusion: string | null
+        winning_version_id: string | null
+        created_at: string
+        recipes?: {
+          slug: string
+          origin_locale: Locale
+          recipe_translations?: { locale: Locale; name: string }[]
+        } | null
+      }
+      return {
+        id: e.id,
+        title: e.title ?? '',
+        recipeId: e.recipe_id,
+        recipeSlug: e.recipes?.slug ?? e.recipe_id,
+        recipeName: e.recipes
+          ? resolveText(
+              collectTranslations(e.recipes.recipe_translations, 'name'),
+              locale,
+              e.recipes.origin_locale,
+            )
+          : { value: e.recipe_id, fallbackFrom: null },
+        versionIds: e.version_ids ?? [],
+        sessionIds: e.session_ids ?? [],
+        hypothesis: e.hypothesis,
+        conclusion: e.conclusion,
+        winningVersionId: e.winning_version_id,
+        createdAt: e.created_at,
+      }
+    })
+  }
+
+  async saveExperiment(input: {
+    id: string | null
+    recipeSlug: string
+    title: string
+    versionIds: string[]
+    sessionIds: string[]
+    hypothesis: string | null
+    conclusion: string | null
+    winningVersionId: string | null
+  }): Promise<{ id: string }> {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    const { data: recipeId } = await supabase.rpc('resolve_recipe_id', {
+      p_slug: input.recipeSlug,
+    })
+    if (!recipeId) throw new Error('No such recipe')
+
+    const { data, error } = await supabase
+      .from('recipe_experiments')
+      .upsert({
+        id: input.id || undefined,
+        owner_id: user.id,
+        recipe_id: recipeId,
+        title: input.title,
+        version_ids: input.versionIds,
+        session_ids: input.sessionIds,
+        hypothesis: input.hypothesis,
+        conclusion: input.conclusion,
+        winning_version_id: input.winningVersionId,
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+
+    return { id: (data as { id: string }).id }
+  }
+
+  async deleteExperiment(id: string): Promise<void> {
+    const supabase = await createClient()
+    const { error } = await supabase.from('recipe_experiments').delete().eq('id', id)
+    if (error) throw error
+  }
+
   async recordAppliedMutation(idempotencyKey: string, slug: string): Promise<void> {
     const supabase = await createClient()
     const {
@@ -1483,7 +1717,16 @@ function supabaseRowToDraft(
       startSeconds: entry.startSeconds,
       notes: { ru: entry.note.value, en: entry.note.value, fr: entry.note.value },
     })),
-    media: [],
+    // The editor needs the storage path back so an unchanged photo is written
+    // out again rather than silently dropped on the next save.
+    media: detail.media.map((photo) => ({
+      id: photo.id,
+      storagePath:
+        (photo as typeof photo & { storagePath?: string | null }).storagePath ?? null,
+      url: null,
+      alt: { ru: photo.alt ?? '', en: photo.alt ?? '', fr: photo.alt ?? '' },
+      isCover: photo.isCover,
+    })),
     createVersion: false,
     versionNote: null,
   }
@@ -1600,4 +1843,88 @@ function snapshotToDraft(snapshot: unknown): RecipeDraft | null {
     createVersion: false,
     versionNote: null,
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// Media
+// ---------------------------------------------------------------------------
+
+/** The bucket holding recipe and cook photos. Private; nothing is ever public. */
+export const MEDIA_BUCKET = 'recipe-media'
+
+/** How long a signed URL stays valid. Long enough to render, short enough
+ *  that a leaked link in a screenshot stops working the same hour. */
+const SIGNED_URL_TTL_SECONDS = 60 * 30
+
+interface MediaRow {
+  id: string
+  storage_path: string | null
+  external_url: string | null
+  sort_order: number
+  is_cover: boolean
+  recipe_media_translations?: { locale: Locale; alt_text: string }[]
+}
+
+/**
+ * Projects media rows without signing.
+ *
+ * Signing is a network round trip per batch, so it happens once, later, for
+ * exactly the photos a screen is about to render -- not for every row a
+ * listing query happened to return.
+ */
+function rowsToMedia(rows: readonly MediaRow[], locale: Locale): (MediaView & {
+  storagePath: string | null
+})[] {
+  return [...rows]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((row) => {
+      const translations = row.recipe_media_translations ?? []
+      const alt =
+        translations.find((t) => t.locale === locale)?.alt_text?.trim() ||
+        translations.find((t) => t.alt_text?.trim())?.alt_text?.trim() ||
+        null
+      return {
+        id: row.id,
+        // An external URL needs no signing; a stored object does, and gets it
+        // when the page that shows it asks.
+        url: row.external_url,
+        alt,
+        isCover: row.is_cover,
+        storagePath: row.storage_path,
+      }
+    })
+}
+
+function storagePathOf(photo: MediaView): string | null {
+  return (photo as MediaView & { storagePath?: string | null }).storagePath ?? null
+}
+
+/**
+ * Turns stored objects into short-lived signed URLs.
+ *
+ * Exported because pages call it directly: a listing renders dozens of covers
+ * and one batched signing call is the difference between one round trip and
+ * fifty.
+ */
+export async function signMedia<T extends MediaView>(media: T[]): Promise<T[]> {
+  const paths = media
+    .map((photo) => storagePathOf(photo))
+    .filter((path): path is string => Boolean(path))
+  if (paths.length === 0) return media
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS)
+  // A signing failure is not worth breaking a page over: the photo renders as
+  // its fallback and everything else still works.
+  if (error || !data) return media
+
+  const byPath = new Map(data.map((entry) => [entry.path, entry.signedUrl]))
+  return media.map((photo) => {
+    const path = storagePathOf(photo)
+    if (!path) return photo
+    return { ...photo, url: byPath.get(path) ?? photo.url }
+  })
 }

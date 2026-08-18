@@ -13,6 +13,7 @@ import type {
   Unit,
 } from '@/domain'
 import type { ReviewState, SourceType } from '@/lib/seed/types'
+import type { MediaView } from '@/lib/media/types'
 import type { RecipeDraft } from './recipe-draft'
 
 /**
@@ -114,6 +115,8 @@ export interface RecipeSummary {
   /** Count of unresolved review flags, surfaced on the card. */
   openQuestions: number
   hasConflict: boolean
+  /** The photo the card shows, or null when the recipe has none. */
+  cover: MediaView | null
 }
 
 export interface RecipeDetail extends RecipeSummary {
@@ -130,6 +133,7 @@ export interface RecipeDetail extends RecipeSummary {
   evidence: EvidenceView[]
   /** Recipes that use this one as a component. */
   usedBy: { id: string; slug: string; name: LocalizedText }[]
+  media: MediaView[]
 }
 
 export interface PantryItemView {
@@ -169,12 +173,36 @@ export interface CookSessionView {
   id: string
   recipeId: string
   recipeName: LocalizedText
+  /** The immutable version this cook actually followed, when there was one. */
+  versionId: string | null
+  versionNumber: number | null
   startedAt: string
   finishedAt: string | null
   scaleFactor: string
   rating: number | null
+  tasteRating: number | null
+  crustRating: number | null
+  handlingRating: number | null
+  actualActiveMinutes: number | null
+  actualPassiveMinutes: number | null
+  nextTime: string | null
   notes: string | null
   completedStepIds: string[]
+  media: MediaView[]
+}
+
+export interface ExperimentView {
+  id: string
+  title: string
+  recipeId: string
+  recipeSlug: string
+  recipeName: LocalizedText
+  versionIds: string[]
+  sessionIds: string[]
+  hypothesis: string | null
+  conclusion: string | null
+  winningVersionId: string | null
+  createdAt: string
 }
 
 export interface CategoryView {
@@ -316,4 +344,34 @@ export interface Repository {
   /** The slug written under this key, or null when it has not been used. */
   findAppliedMutation(idempotencyKey: string): Promise<string | null>
   recordAppliedMutation(idempotencyKey: string, slug: string): Promise<void>
+
+  // --- Media ---------------------------------------------------------------
+
+  /*
+   * Uploading is separate from saving the recipe on purpose: the bytes go up
+   * first, so a failed recipe save leaves a file to clean up rather than a
+   * recipe row pointing at a file that was never stored.
+   */
+  uploadMedia(input: {
+    id: string
+    bytes: ArrayBuffer
+    contentType: string
+  }): Promise<{ storagePath: string | null }>
+  /** Removes objects the owner no longer references. Never throws on a miss. */
+  deleteMediaObjects(storagePaths: string[]): Promise<void>
+
+  // --- Experiments ---------------------------------------------------------
+
+  listExperiments(locale: Locale): Promise<ExperimentView[]>
+  saveExperiment(input: {
+    id: string | null
+    recipeSlug: string
+    title: string
+    versionIds: string[]
+    sessionIds: string[]
+    hypothesis: string | null
+    conclusion: string | null
+    winningVersionId: string | null
+  }): Promise<{ id: string }>
+  deleteExperiment(id: string): Promise<void>
 }

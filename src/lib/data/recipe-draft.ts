@@ -158,15 +158,25 @@ export const recipeDraftSchema = z.object({
   source: draftSourceSchema.nullable().default(null),
   evidence: z.array(draftEvidenceSchema).max(120).default([]),
 
-  /** Photos already uploaded, referenced by storage path or external URL. */
+  /**
+   * Photos.
+   *
+   * `storagePath` points into the private bucket when Supabase is holding the
+   * file; in demo mode it is null and the bytes live in the browser's own
+   * IndexedDB under `id`. Either way the recipe record stays small and carries
+   * no image data itself.
+   */
   media: z
     .array(
       z.object({
-        url: z.string().trim().max(1000),
-        alt: localizedOptional.optional(),
+        id: z.string().trim().min(1).max(100),
+        storagePath: z.string().trim().max(500).nullable().default(null),
+        url: z.string().trim().max(1000).nullable().default(null),
+        alt: localizedOptional.default({ ru: '', en: '', fr: '' }),
+        isCover: z.boolean().default(false),
       }),
     )
-    .max(20)
+    .max(12)
     .default([]),
 
   /** Set when the caller knowingly wants a new immutable version snapshot. */
@@ -277,6 +287,18 @@ export function validateDraft(draft: RecipeDraft): DraftValidationIssue[] {
       path: 'status',
       message: 'A recipe with an unresolved source conflict cannot be marked verified',
     })
+  }
+
+  // Photos: one cover at most, and no two rows claiming the same file.
+  const seenMedia = new Set<string>()
+  for (const [index, photo] of draft.media.entries()) {
+    if (seenMedia.has(photo.id)) {
+      issues.push({ path: `media.${index}.id`, message: 'Duplicate photo' })
+    }
+    seenMedia.add(photo.id)
+  }
+  if (draft.media.filter((photo) => photo.isCover).length > 1) {
+    issues.push({ path: 'media', message: 'Only one photo can be the cover' })
   }
 
   return issues

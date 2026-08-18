@@ -24,6 +24,7 @@ import { validateDraft } from '@/lib/data/recipe-draft'
 import { useOffline } from '@/lib/client-env'
 import { enqueue } from '@/lib/offline/queue'
 import { cn } from '@/lib/utils'
+import { MediaEditor } from './media-editor'
 import { AmountEditor } from './amount-editor'
 import { type EditorOptions, nextKey } from './editor-types'
 import { roleForIngredient } from '@/components/recipe/dough-formula'
@@ -31,7 +32,7 @@ import { roleForIngredient } from '@/components/recipe/dough-formula'
 const LOCALES = ['ru', 'en', 'fr'] as const
 type EditorLocale = (typeof LOCALES)[number]
 
-const SECTIONS = ['general', 'ingredients', 'steps', 'source'] as const
+const SECTIONS = ['general', 'ingredients', 'steps', 'photos', 'source'] as const
 type Section = (typeof SECTIONS)[number]
 
 /**
@@ -277,6 +278,19 @@ export function RecipeEditor({
 
       {section === 'steps' ? (
         <StepsSection draft={draft} update={update} locale={locale} issueFor={issueFor} />
+      ) : null}
+
+      {section === 'photos' ? (
+        <Card>
+          <CardBody className="space-y-3">
+            <SectionHeading>{t('editor.section.photos')}</SectionHeading>
+            <MediaEditor
+              media={draft.media}
+              locale={locale}
+              onChange={(media) => update({ media })}
+            />
+          </CardBody>
+        </Card>
       ) : null}
 
       {section === 'source' ? (

@@ -176,6 +176,22 @@ export interface SeedRecipe {
   steps: SeedRecipeStep[]
   source?: SeedSource
   evidence?: SeedEvidence[]
+  media?: SeedRecipeMedia[]
+}
+
+/**
+ * A photo attached to a recipe.
+ *
+ * The bundled catalog ships none -- these appear only on recipes the owner
+ * authored -- but they live in the same shape so an authored recipe and a
+ * seeded one stay interchangeable everywhere downstream.
+ */
+export interface SeedRecipeMedia {
+  id: string
+  storagePath?: string | null
+  url?: string | null
+  alt?: Partial<Translated<string>>
+  isCover?: boolean
 }
 
 export interface SeedCatalog {

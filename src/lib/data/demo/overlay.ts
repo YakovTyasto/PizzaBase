@@ -55,6 +55,16 @@ const planEntrySchema = z.object({
   sauceRecipeId: z.string().nullable().default(null),
 })
 
+const mediaSchema = z.object({
+  id: z.string(),
+  storagePath: z.string().nullable().default(null),
+  url: z.string().nullable().default(null),
+  alt: z
+    .object({ ru: z.string().default(''), en: z.string().default(''), fr: z.string().default('') })
+    .default({ ru: '', en: '', fr: '' }),
+  isCover: z.boolean().default(false),
+})
+
 const cookSessionSchema = z.object({
   id: z.string(),
   recipeId: z.string(),
@@ -63,8 +73,27 @@ const cookSessionSchema = z.object({
   finishedAt: z.string().nullable().default(null),
   scaleFactor: z.string().default('1'),
   rating: z.number().nullable().default(null),
+  tasteRating: z.number().nullable().default(null),
+  crustRating: z.number().nullable().default(null),
+  handlingRating: z.number().nullable().default(null),
+  actualActiveMinutes: z.number().nullable().default(null),
+  actualPassiveMinutes: z.number().nullable().default(null),
+  nextTime: z.string().nullable().default(null),
   notes: z.string().nullable().default(null),
   completedStepIds: z.array(z.string()).default([]),
+  media: z.array(mediaSchema).default([]),
+})
+
+const experimentSchema = z.object({
+  id: z.string(),
+  recipeSlug: z.string(),
+  title: z.string().default(''),
+  versionIds: z.array(z.string()).default([]),
+  sessionIds: z.array(z.string()).default([]),
+  hypothesis: z.string().nullable().default(null),
+  conclusion: z.string().nullable().default(null),
+  winningVersionId: z.string().nullable().default(null),
+  createdAt: z.string(),
 })
 
 /** An immutable snapshot taken when a verified recipe is changed. */
@@ -106,6 +135,7 @@ const overlaySchema = z.object({
     })
     .default({ id: 'demo-plan', serveAt: null, notes: null, entries: [] }),
   sessions: z.array(cookSessionSchema).default([]),
+  experiments: z.array(experimentSchema).default([]),
   settings: settingsSchema.default(() => settingsSchema.parse({})),
   /** Import candidates already approved, so a double submit cannot duplicate. */
   /* Idempotency key -> the recipe slug it produced. Bounded when written. */
@@ -116,6 +146,7 @@ export type DemoOverlay = z.infer<typeof overlaySchema>
 export type DemoPantryItem = z.infer<typeof pantrySchema>
 export type DemoCookSession = z.infer<typeof cookSessionSchema>
 export type DemoVersion = z.infer<typeof versionSchema>
+export type DemoExperiment = z.infer<typeof experimentSchema>
 
 export const EMPTY_OVERLAY: DemoOverlay = overlaySchema.parse({})
 

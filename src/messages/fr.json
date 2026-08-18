@@ -499,7 +499,8 @@
       "general": "Général",
       "ingredients": "Ingrédients",
       "steps": "Étapes",
-      "source": "Source"
+      "source": "Source",
+      "photos": "Photos"
     },
     "name": "Nom",
     "summary": "Description courte",
@@ -584,8 +585,25 @@
   },
   "demo": {
     "reset": "Réinitialiser les données de démo",
-    "resetHint": "Supprime toutes les recettes, plans et produits ajoutés ici et restaure le catalogue intégré.",
+    "resetHint": "Supprime toutes les recettes, plans et produits ajoutés ici et restaure le catalogue intégré. Les photos locales sont également supprimées.",
     "resetConfirm": "Réinitialiser les données de démo ? Tout ce que vous avez créé ici sera supprimé.",
     "resetDone": "Données de démo réinitialisées."
+  },
+  "media": {
+    "add": "Ajouter des photos",
+    "none": "Aucune photo pour l’instant.",
+    "cover": "Couverture",
+    "alt": "Description pour l’accessibilité",
+    "altHint": "Ce que montre la photo",
+    "processing": "Traitement de la photo…",
+    "limit": "Jusqu’à {count} photos",
+    "photos": "Photos",
+    "reject": {
+      "too_large": "Ce fichier dépasse 8 Mo.",
+      "not_an_image": "Ce n’est pas un JPEG, PNG ou WebP.",
+      "heic": "HEIC n’est pas pris en charge. Réglez l’appareil photo sur JPEG ou convertissez le fichier avec les outils du système.",
+      "decode_failed": "Cette image n’a pas pu être lue.",
+      "too_small": "Cette image est trop petite."
+    }
   }
 }

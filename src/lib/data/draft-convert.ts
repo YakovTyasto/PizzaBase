@@ -133,6 +133,13 @@ export function draftToStored(draft: RecipeDraft, slug: string): SeedRecipe {
           attribution: draft.source.attribution,
         }
       : undefined,
+    media: draft.media.map((photo) => ({
+      id: photo.id,
+      storagePath: photo.storagePath,
+      url: photo.url,
+      alt: trimmedLocalized(photo.alt),
+      isCover: photo.isCover,
+    })),
     evidence: draft.evidence.map((entry) => ({
       field: entry.field,
       itemKey: entry.itemKey,
@@ -211,7 +218,17 @@ export function storedToDraft(recipe: SeedRecipe): RecipeDraft {
       startSeconds: entry.startSeconds ?? null,
       notes: filledLocalized(entry.notes),
     })),
-    media: [],
+    media: (recipe.media ?? []).map((photo) => ({
+      id: photo.id,
+      storagePath: photo.storagePath ?? null,
+      url: photo.url ?? null,
+      alt: {
+        ru: photo.alt?.ru ?? '',
+        en: photo.alt?.en ?? '',
+        fr: photo.alt?.fr ?? '',
+      },
+      isCover: photo.isCover ?? false,
+    })),
     createVersion: false,
     versionNote: null,
   }

@@ -1,4 +1,5 @@
 import 'server-only'
+import { coverOf, mediaViews } from '../media-view'
 import { randomUUID } from 'node:crypto'
 import {
   type Amount,
@@ -31,6 +32,7 @@ import type {
   RecipeSummary,
   RecipeVersionView,
   Repository,
+  ExperimentView,
   SaveRecipeResult,
   UserSettingsView,
 } from '../types'
@@ -120,6 +122,7 @@ export class DemoRepository implements Repository {
       type: recipe.type,
       status: recipe.status,
       authenticity: recipe.authenticity,
+      cover: coverOf(recipe, locale),
       styleId: recipe.styleSlug ?? null,
       styleName: style ? resolveText(style.names, locale) : null,
       ovenProfileId: recipe.ovenProfileSlug ?? null,
@@ -269,6 +272,7 @@ export class DemoRepository implements Repository {
 
     return {
       ...this.toSummary(recipe, locale),
+      media: mediaViews(recipe.media ?? [], locale),
       baseYield: recipe.baseYield ?? null,
       yieldUnit: recipe.yieldUnit ?? null,
       baseDiameterMm: recipe.baseDiameterMm ?? null,
@@ -473,12 +477,23 @@ export class DemoRepository implements Repository {
           recipeName: recipe
             ? resolveText(recipe.names, locale, recipe.originLocale)
             : { value: session.recipeId, fallbackFrom: null },
+          versionId: session.versionId,
+          versionNumber:
+            overlay.versions.find((version) => version.id === session.versionId)?.versionNumber ??
+            null,
           startedAt: session.startedAt,
           finishedAt: session.finishedAt,
           scaleFactor: session.scaleFactor,
           rating: session.rating,
+          tasteRating: session.tasteRating,
+          crustRating: session.crustRating,
+          handlingRating: session.handlingRating,
+          actualActiveMinutes: session.actualActiveMinutes,
+          actualPassiveMinutes: session.actualPassiveMinutes,
+          nextTime: session.nextTime,
           notes: session.notes,
           completedStepIds: session.completedStepIds,
+          media: mediaViews(session.media, locale),
         }
       })
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
@@ -494,16 +509,31 @@ export class DemoRepository implements Repository {
             id: session.id,
             recipeId: session.recipeId,
             // A session records which version was actually cooked, so history
-            // stays meaningful after the recipe moves on.
+            // stays meaningful after the recipe moves on. The caller knows
+            // which one it rendered; the primary is only a fallback.
             versionId:
+              session.versionId ??
               overlay.versions.find((v) => v.recipeId === session.recipeId && v.isPrimary)?.id ??
               null,
             startedAt: session.startedAt,
             finishedAt: session.finishedAt,
             scaleFactor: session.scaleFactor,
             rating: session.rating,
+            tasteRating: session.tasteRating,
+            crustRating: session.crustRating,
+            handlingRating: session.handlingRating,
+            actualActiveMinutes: session.actualActiveMinutes,
+            actualPassiveMinutes: session.actualPassiveMinutes,
+            nextTime: session.nextTime?.slice(0, 2000) ?? null,
             notes: session.notes?.slice(0, 2000) ?? null,
             completedStepIds: session.completedStepIds,
+            media: session.media.map((photo) => ({
+              id: photo.id,
+              storagePath: null,
+              url: null,
+              alt: { ru: photo.alt ?? '', en: photo.alt ?? '', fr: photo.alt ?? '' },
+              isCover: photo.isCover,
+            })),
           },
           ...rest,
         ].slice(0, 200),
@@ -838,6 +868,100 @@ export class DemoRepository implements Repository {
       ].slice(0, 200)
       return { ...overlay, appliedMutations: Object.fromEntries(entries) }
     })
+  }
+
+  // --- Media ---------------------------------------------------------------
+
+  /**
+   * Demo mode keeps the bytes in the browser.
+   *
+   * There is nowhere sensible to put a photograph server-side here: the demo
+   * has no account to attach it to, and writing megabytes into the session
+   * overlay would make every page read slower for everyone. The client stores
+   * the Blob in IndexedDB under the same id and resolves it at render time, so
+   * this call has nothing to upload and says so by returning no path.
+   */
+  async uploadMedia(): Promise<{ storagePath: null }> {
+    return { storagePath: null }
+  }
+
+  async deleteMediaObjects(): Promise<void> {
+    // Nothing is stored server-side, so there is nothing to orphan. The client
+    // clears its own IndexedDB entries when a photo is removed.
+  }
+
+  // --- Experiments ---------------------------------------------------------
+
+  async listExperiments(locale: Locale): Promise<ExperimentView[]> {
+    const overlay = await this.overlay()
+    const recipes = new Map(effectiveRecipes(overlay).map((r) => [r.slug, r]))
+
+    return overlay.experiments
+      .map((experiment) => {
+        const recipe = recipes.get(experiment.recipeSlug)
+        return {
+          id: experiment.id,
+          title: experiment.title,
+          recipeId: experiment.recipeSlug,
+          recipeSlug: experiment.recipeSlug,
+          recipeName: recipe
+            ? resolveText(recipe.names, locale, recipe.originLocale)
+            : { value: experiment.recipeSlug, fallbackFrom: null },
+          versionIds: experiment.versionIds,
+          sessionIds: experiment.sessionIds,
+          hypothesis: experiment.hypothesis,
+          conclusion: experiment.conclusion,
+          winningVersionId: experiment.winningVersionId,
+          createdAt: experiment.createdAt,
+        }
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+
+  async saveExperiment(input: {
+    id: string | null
+    recipeSlug: string
+    title: string
+    versionIds: string[]
+    sessionIds: string[]
+    hypothesis: string | null
+    conclusion: string | null
+    winningVersionId: string | null
+  }): Promise<{ id: string }> {
+    const overlay = await this.overlay()
+    if (!findRecipe(overlay, input.recipeSlug)) {
+      throw new RepositoryError('No such recipe', 'not_found')
+    }
+
+    const id = input.id ?? `exp-${randomUUID().slice(0, 12)}`
+    const existing = overlay.experiments.find((experiment) => experiment.id === id)
+
+    await this.mutate((current) => ({
+      ...current,
+      experiments: [
+        {
+          id,
+          recipeSlug: input.recipeSlug,
+          title: input.title,
+          versionIds: input.versionIds,
+          sessionIds: input.sessionIds,
+          hypothesis: input.hypothesis,
+          conclusion: input.conclusion,
+          winningVersionId: input.winningVersionId,
+          createdAt: existing?.createdAt ?? new Date().toISOString(),
+        },
+        ...current.experiments.filter((experiment) => experiment.id !== id),
+      ].slice(0, 100),
+    }))
+
+    return { id }
+  }
+
+  async deleteExperiment(id: string): Promise<void> {
+    await this.mutate((overlay) => ({
+      ...overlay,
+      experiments: overlay.experiments.filter((experiment) => experiment.id !== id),
+    }))
   }
 
   // --- Demo housekeeping ---------------------------------------------------
