@@ -44,7 +44,7 @@ export function emptyDraft(type: RecipeDraft['type']): RecipeDraft {
     },
     evidence: [],
     media: [],
-  aiTranslatedLocales: [],
+    aiTranslatedLocales: [],
     createVersion: false,
     versionNote: null,
   }

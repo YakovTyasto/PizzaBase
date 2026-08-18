@@ -127,8 +127,7 @@ export function deserializeRecipe(recipe: WireRecipe): DomainRecipe {
     baseShape: recipe.baseShape,
     baseTrayWidthMm: recipe.baseTrayWidthMm,
     baseTrayHeightMm: recipe.baseTrayHeightMm,
-    baseBallWeightG:
-      recipe.baseBallWeightG === null ? null : new Decimal(recipe.baseBallWeightG),
+    baseBallWeightG: recipe.baseBallWeightG === null ? null : new Decimal(recipe.baseBallWeightG),
     items: recipe.items.map((item) => ({
       ...item,
       amount: deserializeAmount(item.amount),

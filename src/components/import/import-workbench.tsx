@@ -83,7 +83,9 @@ export function ImportWorkbench({
         }
       } catch (cause) {
         setError(
-          cause instanceof ImageRejectedError ? t(`media.reject.${cause.reason}`) : t('errors.generic'),
+          cause instanceof ImageRejectedError
+            ? t(`media.reject.${cause.reason}`)
+            : t('errors.generic'),
         )
       } finally {
         setPhotoProgress(null)
@@ -121,7 +123,7 @@ export function ImportWorkbench({
         <div
           role="tablist"
           aria-label={t('import.title')}
-          className="flex w-max gap-1 rounded-full border border-rule p-1"
+          className="border-rule flex w-max gap-1 rounded-full border p-1"
         >
           {TABS.map((option) => (
             <button
@@ -143,14 +145,14 @@ export function ImportWorkbench({
 
       {/* Honest provider status rather than a button that silently does nothing. */}
       {!extractionProvider.available && extractionProvider.requiredKey ? (
-        <p className="flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber">
+        <p className="bg-amber-soft text-amber flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
           {t('errors.providerDisabledHint', { key: extractionProvider.requiredKey })}
         </p>
       ) : null}
 
       {extractionProvider.name.toLowerCase().includes('mock') ? (
-        <p className="flex items-start gap-2 rounded-lg bg-paper-sunken px-3 py-2 text-sm text-ink-muted">
+        <p className="bg-paper-sunken text-ink-muted flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
           {t('errors.providerDisabled', { provider: 'OpenAI' })}{' '}
           {t('errors.providerDisabledHint', { key: 'OPENAI_API_KEY' })}
@@ -170,7 +172,7 @@ export function ImportWorkbench({
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
               />
-              <p className="mt-1 text-xs text-ink-faint">{t('import.youtubeUrlHint')}</p>
+              <p className="text-ink-faint mt-1 text-xs">{t('import.youtubeUrlHint')}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -186,7 +188,7 @@ export function ImportWorkbench({
               </Badge>
             </div>
 
-            <p className="text-xs text-ink-faint">{t('import.privacyNote')}</p>
+            <p className="text-ink-faint text-xs">{t('import.privacyNote')}</p>
           </CardBody>
         </Card>
       ) : null}
@@ -206,7 +208,7 @@ export function ImportWorkbench({
                 placeholder={t('import.pasteText')}
               />
               {needsManual ? (
-                <p className="mt-1 text-xs text-ink-faint">{t('import.transcriptManualHint')}</p>
+                <p className="text-ink-faint mt-1 text-xs">{t('import.transcriptManualHint')}</p>
               ) : null}
             </div>
             <Button onClick={runText} disabled={pending || text.trim().length < 20}>
@@ -220,7 +222,9 @@ export function ImportWorkbench({
       {tab === 'photo' ? (
         <Card>
           <CardBody className="space-y-3">
-            <p className="text-sm text-ink-muted">{t('import.uploadPhotoHint', { size: '8 MB' })}</p>
+            <p className="text-ink-muted text-sm">
+              {t('import.uploadPhotoHint', { size: '8 MB' })}
+            </p>
 
             <div>
               <input
@@ -250,7 +254,7 @@ export function ImportWorkbench({
 
             {photoProgress !== null ? (
               <div
-                className="h-1.5 w-full overflow-hidden rounded-full bg-paper-sunken"
+                className="bg-paper-sunken h-1.5 w-full overflow-hidden rounded-full"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
@@ -258,18 +262,18 @@ export function ImportWorkbench({
                 aria-label={t('media.processing')}
               >
                 <div
-                  className="h-full bg-tomato transition-[width]"
+                  className="bg-tomato h-full transition-[width]"
                   style={{ width: `${Math.round(photoProgress * 100)}%` }}
                 />
               </div>
             ) : null}
 
-            <p className="text-xs text-ink-faint">{t('import.photoPrivacy')}</p>
+            <p className="text-ink-faint text-xs">{t('import.photoPrivacy')}</p>
 
-            <p className="text-xs text-ink-faint">
+            <p className="text-ink-faint text-xs">
               <Link
                 href="/scan"
-                className="inline-flex items-center gap-1 text-tomato underline underline-offset-2"
+                className="text-tomato inline-flex items-center gap-1 underline underline-offset-2"
               >
                 <ExternalLink aria-hidden className="size-3" />
                 {t('scanner.title')}
@@ -282,14 +286,17 @@ export function ImportWorkbench({
       {tab === 'manual' ? (
         <Card>
           <CardBody>
-            <p className="text-sm text-ink-muted">{t('import.pasteText')}</p>
-            <p className="mt-2 text-xs text-ink-faint">{t('import.reviewHint')}</p>
+            <p className="text-ink-muted text-sm">{t('import.pasteText')}</p>
+            <p className="text-ink-faint mt-2 text-xs">{t('import.reviewHint')}</p>
           </CardBody>
         </Card>
       ) : null}
 
       {error ? (
-        <p role="alert" className="flex items-start gap-2 rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong">
+        <p
+          role="alert"
+          className="bg-tomato-soft text-tomato-strong flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
+        >
           <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
             {error}

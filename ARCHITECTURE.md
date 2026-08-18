@@ -10,7 +10,7 @@ rounding all live here as plain functions, and they are the most heavily
 tested part of the project.
 
 No language model is involved in any calculation. An LLM may later write one
-sentence explaining *why* a recipe was suggested, but the candidate set, the
+sentence explaining _why_ a recipe was suggested, but the candidate set, the
 quantities and the missing list are computed deterministically so they can be
 tested and cannot drift.
 
@@ -30,8 +30,8 @@ the presentation layer, in `src/lib/format.ts`.
 
 ```ts
 type Amount =
-  | { kind: 'exact';       value: Decimal; unit: Unit }
-  | { kind: 'range';       min: Decimal; max: Decimal; unit: Unit }
+  | { kind: 'exact'; value: Decimal; unit: Unit }
+  | { kind: 'range'; min: Decimal; max: Decimal; unit: Unit }
   | { kind: 'qualitative'; unit: 'pinch' | 'handful' | 'to_taste' | 'as_needed' }
   | { kind: 'unknown' }
 ```
@@ -58,7 +58,7 @@ memoized per call tree, and every resulting line carries a root-first
 provenance chain so the UI can answer "why is this tomato in my basket?".
 
 When a component cannot be expanded — no stated yield, or an unknown requested
-amount — the engine returns a typed *issue* rather than contributing nothing.
+amount — the engine returns a typed _issue_ rather than contributing nothing.
 The screen then says "this sauce has no yield yet" instead of quietly
 under-reporting the list.
 
@@ -82,7 +82,7 @@ The product's differentiator is that it says what it does not know.
   transcriptions disagree. No value is picked on the user's behalf.
 - The arrabbiata sausage stays unspecified rather than being guessed.
 - Substitutions are a curated allow-list. Unapproved rows stay in the table so
-  the UI can explain *why* a swap is refused, which is how the app answers "no
+  the UI can explain _why_ a swap is refused, which is how the app answers "no
   tomatoes" with "add them to the list" rather than something that does not
   belong on a pizza.
 
@@ -140,7 +140,7 @@ Inverted ranges, impossible temperatures and duplicate ingredients are caught
 in `validateExtraction`; errors block approval outright.
 
 Nothing an import produces is saved automatically. The user reviews a
-*candidate*, and the review screen deliberately makes unknowns and conflicts
+_candidate_, and the review screen deliberately makes unknowns and conflicts
 loud.
 
 ### Translation cannot change a number
@@ -205,7 +205,7 @@ connection mid-bake costs nothing. Timers store an **absolute end timestamp**
 rather than a countdown, so a phone that slept for twenty minutes comes back
 with the correct remaining time instead of twenty minutes behind.
 
-Offline *writes* are queued, but only two kinds: recipe drafts and cooking
+Offline _writes_ are queued, but only two kinds: recipe drafts and cooking
 results. Both are last-writer-wins on one owner's own data, so replaying them
 is safe. Everything else — plans, pantry, imports — still needs a connection
 and fails loudly, because a queue that silently replayed a shopping-list edit
@@ -213,7 +213,7 @@ against a server that had moved on would be worse than an honest refusal.
 
 Each entry carries an idempotency key derived from its content, and the write
 path records which keys it has applied. That is what makes a replay safe when
-the *response* was lost rather than the request: the retry resolves to the
+the _response_ was lost rather than the request: the retry resolves to the
 record that already exists instead of creating a second one. A server-side
 change is parked as a conflict with the local copy intact and the owner
 chooses; nothing is overwritten silently.

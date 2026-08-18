@@ -24,11 +24,7 @@ export async function generateMetadata({
  * dependent calculation follows. Nothing here proposes a value as confirmed --
  * the whole point is that the app is asking rather than guessing.
  */
-export default async function ReviewPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function ReviewPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 
@@ -62,7 +58,7 @@ export default async function ReviewPage({
     <div className="space-y-5">
       <div>
         <h1 className="font-display text-2xl font-semibold">{t('review.title')}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="text-ink-muted mt-1 text-sm">
           {t('review.count', { count: questions.length })}
         </p>
       </div>
@@ -78,9 +74,7 @@ export default async function ReviewPage({
           reviewState: question.reviewState,
           note: question.note?.value ?? null,
           kind: question.kind,
-          currentAmount: question.currentAmount
-            ? serializeAmount(question.currentAmount)
-            : null,
+          currentAmount: question.currentAmount ? serializeAmount(question.currentAmount) : null,
         }))}
         packageOptions={packages.map((option) => ({
           id: option.id,

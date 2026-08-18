@@ -9,11 +9,7 @@ import { appConfig } from '@/lib/config/app-config'
 import { getRepository } from '@/lib/data'
 import { formatDateTime } from '@/lib/format'
 
-export default async function HomePage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 
@@ -37,7 +33,7 @@ export default async function HomePage({
   return (
     <div className="space-y-8">
       <header>
-        <p className="text-sm text-ink-faint">{appConfig.name}</p>
+        <p className="text-ink-faint text-sm">{appConfig.name}</p>
         <h1 className="font-display text-3xl font-semibold sm:text-4xl">{t('home.greeting')}</h1>
       </header>
 
@@ -45,8 +41,8 @@ export default async function HomePage({
         <Card className="border-tomato">
           <CardBody className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-medium text-ink">{t('home.resumeCook')}</p>
-              <p className="text-sm text-ink-muted">
+              <p className="text-ink font-medium">{t('home.resumeCook')}</p>
+              <p className="text-ink-muted text-sm">
                 {recipeNames[unfinished.recipeId] ?? unfinished.recipeId} ·{' '}
                 {t('home.resumeCookHint')}
               </p>
@@ -64,7 +60,7 @@ export default async function HomePage({
       <section>
         <SectionHeading
           action={
-            <Link href="/plan" className="text-xs text-tomato underline underline-offset-2">
+            <Link href="/plan" className="text-tomato text-xs underline underline-offset-2">
               {t('plan.title')}
             </Link>
           }
@@ -85,7 +81,7 @@ export default async function HomePage({
           <Card>
             <CardBody className="space-y-2">
               {plan.serveAt ? (
-                <p className="text-sm text-ink-muted">
+                <p className="text-ink-muted text-sm">
                   {t('plan.serveAt')}: {formatDateTime(new Date(plan.serveAt), locale)}
                 </p>
               ) : null}
@@ -113,8 +109,8 @@ export default async function HomePage({
       {needsReview.length > 0 ? (
         <section>
           <SectionHeading>{t('home.needsReview')}</SectionHeading>
-          <p className="mb-3 flex items-start gap-1.5 text-sm text-ink-muted">
-            <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-amber" />
+          <p className="text-ink-muted mb-3 flex items-start gap-1.5 text-sm">
+            <AlertTriangle aria-hidden className="text-amber mt-0.5 size-4 shrink-0" />
             {t('home.needsReviewHint')}
           </p>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -132,7 +128,7 @@ export default async function HomePage({
           action={
             <Link
               href="/recommendations"
-              className="text-xs text-tomato underline underline-offset-2"
+              className="text-tomato text-xs underline underline-offset-2"
             >
               {t('recommendations.title')}
             </Link>
@@ -164,7 +160,7 @@ export default async function HomePage({
       <section>
         <SectionHeading
           action={
-            <Link href="/history" className="text-xs text-tomato underline underline-offset-2">
+            <Link href="/history" className="text-tomato text-xs underline underline-offset-2">
               {t('history.title')}
             </Link>
           }
@@ -172,15 +168,15 @@ export default async function HomePage({
           {t('home.recentlyCooked')}
         </SectionHeading>
         {recentlyCooked.length === 0 ? (
-          <p className="text-sm text-ink-muted">{t('home.noRecentCooks')}</p>
+          <p className="text-ink-muted text-sm">{t('home.noRecentCooks')}</p>
         ) : (
           <ul className="space-y-2">
             {recentlyCooked.map((session) => (
               <li key={session.id}>
                 <Card>
                   <CardBody className="flex items-center justify-between gap-3 py-3">
-                    <span className="text-sm text-ink">{session.recipeName.value}</span>
-                    <span className="text-xs text-ink-faint">
+                    <span className="text-ink text-sm">{session.recipeName.value}</span>
+                    <span className="text-ink-faint text-xs">
                       {formatDateTime(new Date(session.startedAt), locale)}
                     </span>
                   </CardBody>

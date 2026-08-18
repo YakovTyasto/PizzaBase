@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
  * arithmetic fails here and not just in the unit tests.
  */
 test.describe('recipe scaling', () => {
-  test('shows the stated formula and its baker\'s percentages', async ({ page }) => {
+  test("shows the stated formula and its baker's percentages", async ({ page }) => {
     await page.goto('/ru/recipes/sisofo-forgotten-neapolitan')
 
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Забытый стиль')
@@ -35,9 +35,7 @@ test.describe('recipe scaling', () => {
     // The owner's pizzas have unknown amounts, so the area control is what is
     // under test here rather than a specific gram figure.
     await expect(page.getByText('Считать топпинги по площади')).toBeVisible()
-    await expect(
-      page.getByText('Пицца 40 см имеет в 1,78 раза большую площадь'),
-    ).toBeVisible()
+    await expect(page.getByText('Пицца 40 см имеет в 1,78 раза большую площадь')).toBeVisible()
   })
 
   test('says an amount is unknown instead of showing a zero', async ({ page }) => {

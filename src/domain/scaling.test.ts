@@ -5,10 +5,7 @@ import { ScalingError, areaFactor, doughFactor, toppingFactor } from './scaling'
 
 describe('size scaling', () => {
   it('scales round toppings by area, not diameter', () => {
-    const f = areaFactor(
-      { shape: 'round', diameterMm: 300 },
-      { shape: 'round', diameterMm: 400 },
-    )
+    const f = areaFactor({ shape: 'round', diameterMm: 300 }, { shape: 'round', diameterMm: 400 })
     // (400/300)^2 = 1.777..., emphatically not 1.333...
     expect(f.toDecimalPlaces(4).toString()).toBe('1.7778')
     expect(f.toNumber()).toBeGreaterThan(400 / 300)

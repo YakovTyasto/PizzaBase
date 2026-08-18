@@ -103,9 +103,7 @@ describe('configurations that would fail quietly', () => {
   it('warns about the placeholder Open Food Facts contact', async () => {
     const problems = await validateWith({ DEMO_MODE: 'true' })
     expect(
-      problems.some(
-        (p) => p.variable === 'OPENFOODFACTS_USER_AGENT' && p.severity === 'warning',
-      ),
+      problems.some((p) => p.variable === 'OPENFOODFACTS_USER_AGENT' && p.severity === 'warning'),
     ).toBe(true)
   })
 })

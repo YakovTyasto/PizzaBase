@@ -222,7 +222,10 @@ export function importToDraft(input: ImportToDraftInput): RecipeDraft {
     activeMinutes: steps.reduce((sum, step) => sum + step.activeMinutes, 0) || null,
     passiveMinutes: steps.reduce((sum, step) => sum + step.waitMaxMinutes, 0) || null,
     difficulty: null,
-    tags: extraction.equipment.slice(0, 5).map((item) => slugify(item)).filter(Boolean),
+    tags: extraction.equipment
+      .slice(0, 5)
+      .map((item) => slugify(item))
+      .filter(Boolean),
     names,
     summaries,
     notes: { ru: '', en: '', fr: '' },

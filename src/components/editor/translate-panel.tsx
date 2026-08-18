@@ -76,9 +76,7 @@ export function TranslatePanel({
 
       setProposals(result.proposals)
       // Only the proposals that passed the guard start selected.
-      setChosen(
-        new Set(result.proposals.filter((p) => p.status === 'ok').map((p) => p.path)),
-      )
+      setChosen(new Set(result.proposals.filter((p) => p.status === 'ok').map((p) => p.path)))
     })
   }
 
@@ -102,7 +100,7 @@ export function TranslatePanel({
       <CardBody className="space-y-3">
         <div className="flex flex-wrap items-end gap-2">
           <label className="min-w-40 flex-1">
-            <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+            <span className="text-ink-muted mb-1.5 block text-xs font-medium">
               {t('translate.target')}
             </span>
             <Select
@@ -121,16 +119,12 @@ export function TranslatePanel({
           </label>
 
           <Button onClick={run} disabled={pending || translatable.length === 0}>
-            {pending ? (
-              <Loader2 aria-hidden className="animate-spin" />
-            ) : (
-              <Languages aria-hidden />
-            )}
+            {pending ? <Loader2 aria-hidden className="animate-spin" /> : <Languages aria-hidden />}
             {t('translate.run', { count: translatable.length })}
           </Button>
         </div>
 
-        <label className="flex items-start gap-2 text-sm text-ink">
+        <label className="text-ink flex items-start gap-2 text-sm">
           <input
             type="checkbox"
             checked={overwrite}
@@ -142,16 +136,16 @@ export function TranslatePanel({
           />
           <span>
             {t('translate.overwrite')}
-            <span className="block text-xs text-ink-faint">{t('translate.overwriteHint')}</span>
+            <span className="text-ink-faint block text-xs">{t('translate.overwriteHint')}</span>
           </span>
         </label>
 
-        <p className="text-xs text-ink-faint">{t('translate.scope')}</p>
+        <p className="text-ink-faint text-xs">{t('translate.scope')}</p>
 
         {error ? (
           <p
             role="alert"
-            className="flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber"
+            className="bg-amber-soft text-amber flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
           >
             <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
             <span>
@@ -168,22 +162,22 @@ export function TranslatePanel({
 
         {proposals ? (
           proposals.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t('translate.nothing')}</p>
+            <p className="text-ink-muted text-sm">{t('translate.nothing')}</p>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs font-medium tracking-wide text-ink-muted uppercase">
+              <p className="text-ink-muted text-xs font-medium tracking-wide uppercase">
                 {t('translate.review')}
               </p>
 
-              <ul className="divide-y divide-rule">
+              <ul className="divide-rule divide-y">
                 {proposals.map((proposal) => (
                   <li key={proposal.path} className="py-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-ink">
+                      <span className="text-ink text-sm font-medium">
                         {labelFor(proposal.path)}
                       </span>
                       {proposal.status === 'ok' ? (
-                        <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+                        <label className="text-ink-muted flex items-center gap-1.5 text-xs">
                           <input
                             type="checkbox"
                             checked={chosen.has(proposal.path)}
@@ -205,7 +199,7 @@ export function TranslatePanel({
                       )}
                     </div>
 
-                    <p className="mt-1 text-sm text-ink-faint">{sourceFor(proposal.path)}</p>
+                    <p className="text-ink-faint mt-1 text-sm">{sourceFor(proposal.path)}</p>
                     <p
                       className={cn(
                         'text-sm',
@@ -216,7 +210,7 @@ export function TranslatePanel({
                     </p>
 
                     {proposal.status === 'refused' ? (
-                      <p className="mt-0.5 text-xs text-tomato">
+                      <p className="text-tomato mt-0.5 text-xs">
                         {t('translate.refusedHint', { detail: proposal.reason })}
                       </p>
                     ) : null}

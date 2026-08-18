@@ -32,7 +32,7 @@ export function MediaStrip({ media, label }: { media: MediaView[]; label: string
       />
 
       {current.alt ? (
-        <figcaption className="text-xs text-ink-faint">{current.alt}</figcaption>
+        <figcaption className="text-ink-faint text-xs">{current.alt}</figcaption>
       ) : null}
 
       {media.length > 1 ? (
@@ -49,12 +49,7 @@ export function MediaStrip({ media, label }: { media: MediaView[]; label: string
                   index === active ? 'border-tomato' : 'border-transparent',
                 )}
               >
-                <MediaImage
-                  id={photo.id}
-                  url={photo.url}
-                  alt={photo.alt}
-                  className="size-full"
-                />
+                <MediaImage id={photo.id} url={photo.url} alt={photo.alt} className="size-full" />
               </button>
             ))}
           </div>

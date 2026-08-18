@@ -27,11 +27,7 @@ export async function generateMetadata({
  * Computed fresh from the plan and the pantry on every visit: the plan and what
  * is at home are the source of truth, so a stale snapshot can never be shown.
  */
-export default async function ShoppingPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function ShoppingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 
@@ -106,7 +102,7 @@ export default async function ShoppingPage({
       </div>
 
       {cycleError ? (
-        <p role="alert" className="rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong">
+        <p role="alert" className="bg-tomato-soft text-tomato-strong rounded-lg px-3 py-2 text-sm">
           {t('errors.cycleHint', { chain: cycleError })}
         </p>
       ) : (
@@ -127,9 +123,7 @@ export default async function ShoppingPage({
                   label: item.packages.label,
                   count: item.packages.count,
                   net: serializeAmount(item.packages.packageNet),
-                  leftover: item.packages.leftover
-                    ? serializeAmount(item.packages.leftover)
-                    : null,
+                  leftover: item.packages.leftover ? serializeAmount(item.packages.leftover) : null,
                 }
               : null,
             provenance: item.provenance.map((line) => ({

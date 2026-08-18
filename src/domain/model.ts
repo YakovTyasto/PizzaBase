@@ -10,12 +10,7 @@ export type RecipeStatus = 'draft' | 'needs_review' | 'verified' | 'archived'
  * layer may never assign `traditional` on its own — see `docs`/ARCHITECTURE.md.
  */
 export type AuthenticityClass =
-  | 'traditional'
-  | 'pizzaiolo'
-  | 'modern_italian'
-  | 'adapted'
-  | 'experimental'
-  | 'user_verified'
+  'traditional' | 'pizzaiolo' | 'modern_italian' | 'adapted' | 'experimental' | 'user_verified'
 
 export type Shape = 'round' | 'rectangular'
 export type StorageLocation = 'fridge' | 'freezer' | 'pantry'

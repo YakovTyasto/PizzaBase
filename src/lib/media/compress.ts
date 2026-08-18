@@ -1,11 +1,6 @@
 'use client'
 
-import {
-  MAX_EDGE_PX,
-  MAX_STORED_BYTES,
-  MAX_UPLOAD_BYTES,
-  type AcceptedImageType,
-} from './types'
+import { MAX_EDGE_PX, MAX_STORED_BYTES, MAX_UPLOAD_BYTES, type AcceptedImageType } from './types'
 import { isAcceptedImageType, looksLikeHeic, sniffImageType } from './signature'
 
 /**

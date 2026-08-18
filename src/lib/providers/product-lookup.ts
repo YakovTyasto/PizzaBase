@@ -86,10 +86,7 @@ export class OpenFoodFactsProvider implements ProductLookupProvider {
 
     if (response.status === 404) return null
     if (!response.ok) {
-      throw new ProviderError(
-        `Open Food Facts returned ${response.status}`,
-        'openfoodfacts',
-      )
+      throw new ProviderError(`Open Food Facts returned ${response.status}`, 'openfoodfacts')
     }
 
     const parsed = offSchema.safeParse(await response.json())

@@ -123,7 +123,8 @@ export interface SeedRecipeStep {
   troubleshooting?: Partial<Translated<string>>
 }
 
-export type SourceType = 'user' | 'youtube' | 'official' | 'website' | 'photo' | 'text' | 'ai_assisted'
+export type SourceType =
+  'user' | 'youtube' | 'official' | 'website' | 'photo' | 'text' | 'ai_assisted'
 
 export interface SeedSource {
   sourceType: SourceType

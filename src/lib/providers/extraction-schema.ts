@@ -28,9 +28,7 @@ export const extractedAmountSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('unknown'),
-    reason: z
-      .string()
-      .describe('Why the amount is unknown, e.g. "not stated in the video"'),
+    reason: z.string().describe('Why the amount is unknown, e.g. "not stated in the video"'),
   }),
 ])
 
@@ -43,10 +41,7 @@ export const extractedIngredientSchema = z.object({
     .nullable()
     .describe('Stage such as "poolish", "biga", "final", "topping", or null'),
   note: z.string().nullable(),
-  startSeconds: z
-    .number()
-    .nullable()
-    .describe('Timecode where this ingredient is stated, or null'),
+  startSeconds: z.number().nullable().describe('Timecode where this ingredient is stated, or null'),
 })
 
 export const extractedStepSchema = z.object({

@@ -40,9 +40,7 @@ export default async function CookPage({
   const versions = await repository.listVersions(recipe.id)
 
   if (recipe.steps.length === 0) {
-    return (
-      <EmptyState title={t('recipe.noSteps')} hint={t('recipe.noStepsHint')} />
-    )
+    return <EmptyState title={t('recipe.noSteps')} hint={t('recipe.noStepsHint')} />
   }
 
   return (

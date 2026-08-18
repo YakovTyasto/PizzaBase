@@ -63,10 +63,9 @@ export const draftItemSchema = z
     group: z.string().trim().max(80).nullable().default(null),
     notes: localizedOptional.optional(),
   })
-  .refine(
-    (item) => Boolean(item.ingredientSlug) !== Boolean(item.componentSlug),
-    { message: 'A line must reference exactly one ingredient or one component' },
-  )
+  .refine((item) => Boolean(item.ingredientSlug) !== Boolean(item.componentSlug), {
+    message: 'A line must reference exactly one ingredient or one component',
+  })
 
 export const draftStepSchema = z
   .object({
@@ -137,7 +136,10 @@ export const recipeDraftSchema = z.object({
   originLocale: z.enum(LOCALE_KEYS),
 
   baseYield: z.string().trim().max(24).nullable().default(null),
-  yieldUnit: z.enum(ALL_UNITS as [string, ...string[]]).nullable().default(null),
+  yieldUnit: z
+    .enum(ALL_UNITS as [string, ...string[]])
+    .nullable()
+    .default(null),
   baseDiameterMm: z.number().int().min(50).max(1200).nullable().default(null),
   baseShape: z.enum(['round', 'rectangular']).nullable().default(null),
   baseTrayWidthMm: z.number().int().min(50).max(3000).nullable().default(null),
@@ -184,7 +186,10 @@ export const recipeDraftSchema = z.object({
    * person. Recorded so a reader can tell, and so a later human edit can be
    * distinguished from a machine draft.
    */
-  aiTranslatedLocales: z.array(z.enum(['ru', 'en', 'fr'])).max(3).default([]),
+  aiTranslatedLocales: z
+    .array(z.enum(['ru', 'en', 'fr']))
+    .max(3)
+    .default([]),
 
   /** Set when the caller knowingly wants a new immutable version snapshot. */
   createVersion: z.boolean().default(false),
@@ -318,10 +323,39 @@ function isFiniteDecimal(value: string): boolean {
 
 /** Turns a name into a URL-safe slug, transliterating Cyrillic. */
 const CYRILLIC: Record<string, string> = {
-  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z',
-  и: 'i', й: 'i', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
-  с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch',
-  ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'g',
+  д: 'd',
+  е: 'e',
+  ё: 'e',
+  ж: 'zh',
+  з: 'z',
+  и: 'i',
+  й: 'i',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'h',
+  ц: 'c',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'sch',
+  ъ: '',
+  ы: 'y',
+  ь: '',
+  э: 'e',
+  ю: 'yu',
+  я: 'ya',
 }
 
 export function slugify(input: string): string {

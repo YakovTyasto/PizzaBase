@@ -29,7 +29,10 @@ async function createSauce(page: import('@playwright/test').Page, name: string) 
 
   // Basil "to taste" -- this must survive as qualitative, not become a number.
   await page.getByRole('button', { name: 'Добавить ингредиент' }).click()
-  await page.getByLabel('Ингредиенты', { exact: true }).last().selectOption({ label: 'Базилик свежий' })
+  await page
+    .getByLabel('Ингредиенты', { exact: true })
+    .last()
+    .selectOption({ label: 'Базилик свежий' })
   await page.getByLabel('Тип количества').last().selectOption('qualitative')
 
   // Olive oil, left explicitly unknown.
@@ -42,7 +45,10 @@ async function createSauce(page: import('@playwright/test').Page, name: string) 
 
   // Salt, to taste.
   await page.getByRole('button', { name: 'Добавить ингредиент' }).click()
-  await page.getByLabel('Ингредиенты', { exact: true }).last().selectOption({ label: 'Морская соль' })
+  await page
+    .getByLabel('Ингредиенты', { exact: true })
+    .last()
+    .selectOption({ label: 'Морская соль' })
   await page.getByLabel('Тип количества').last().selectOption('qualitative')
 
   await page.getByRole('button', { name: 'Создать рецепт' }).click()
@@ -138,9 +144,7 @@ test.describe('nested components', () => {
     await expect(page).toHaveURL(/\/ru\/recipes\/[a-z0-9-]+$/, { timeout: 20_000 })
 
     // 80 g of a sauce yielding 400 g pulls in one fifth of its tomatoes.
-    await expect(
-      page.getByText('Целые очищенные томаты в собственном соку'),
-    ).toBeVisible()
+    await expect(page.getByText('Целые очищенные томаты в собственном соку')).toBeVisible()
     await expect(page.getByText('80 г', { exact: true }).first()).toBeVisible()
   })
 

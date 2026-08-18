@@ -37,16 +37,16 @@ export async function RecipeCard({ recipe }: { recipe: RecipeSummary }) {
             <ReviewBadge openQuestions={recipe.openQuestions} hasConflict={recipe.hasConflict} />
           </div>
 
-          <h3 className="font-display text-xl leading-snug font-semibold text-ink">
+          <h3 className="font-display text-ink text-xl leading-snug font-semibold">
             {recipe.name.value}
             <FallbackBadge text={recipe.name} />
           </h3>
 
           {recipe.summary ? (
-            <p className="mt-1.5 line-clamp-2 text-sm text-ink-muted">{recipe.summary.value}</p>
+            <p className="text-ink-muted mt-1.5 line-clamp-2 text-sm">{recipe.summary.value}</p>
           ) : null}
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-faint">
+          <div className="text-ink-faint mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             {recipe.styleName ? <span>{recipe.styleName.value}</span> : null}
             {totalMinutes > 0 ? (
               <span className="inline-flex items-center gap-1">
@@ -65,7 +65,7 @@ export async function RecipeCard({ recipe }: { recipe: RecipeSummary }) {
           </div>
 
           {recipe.source?.author ? (
-            <p className="mt-2 text-xs text-ink-faint">{recipe.source.author}</p>
+            <p className="text-ink-faint mt-2 text-xs">{recipe.source.author}</p>
           ) : null}
         </div>
       </Link>

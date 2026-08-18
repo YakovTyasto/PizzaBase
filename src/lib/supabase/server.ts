@@ -5,7 +5,9 @@ import { serverEnv } from '@/lib/config/env'
 
 export class SupabaseNotConfiguredError extends Error {
   constructor() {
-    super('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.')
+    super(
+      'Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.',
+    )
     this.name = 'SupabaseNotConfiguredError'
   }
 }

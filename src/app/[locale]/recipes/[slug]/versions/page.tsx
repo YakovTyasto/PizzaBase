@@ -57,7 +57,7 @@ export default async function VersionsPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm text-ink-faint">{recipe.name.value}</p>
+          <p className="text-ink-faint text-sm">{recipe.name.value}</p>
           <h1 className="font-display text-2xl font-semibold">{t('versions.title')}</h1>
         </div>
         <Link href={`/recipes/${slug}`}>

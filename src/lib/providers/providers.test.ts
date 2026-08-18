@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  hasBlockingIssues,
-  recipeExtractionSchema,
-  validateExtraction,
-} from './extraction-schema'
+import { hasBlockingIssues, recipeExtractionSchema, validateExtraction } from './extraction-schema'
 import { mockExtraction } from './mock'
 import { parseQuantityString } from './product-lookup'
 import { formatTimecode } from '@/lib/format'

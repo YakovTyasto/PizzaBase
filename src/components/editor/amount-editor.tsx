@@ -13,12 +13,7 @@ import { Input, Select } from '@/components/ui/primitives'
 import type { DraftAmount } from '@/lib/data/recipe-draft'
 import { cn } from '@/lib/utils'
 
-const NUMERIC_UNITS: Unit[] = [
-  ...MASS_UNITS,
-  ...VOLUME_UNITS,
-  ...COUNT_UNITS,
-  ...PACKAGE_UNITS,
-]
+const NUMERIC_UNITS: Unit[] = [...MASS_UNITS, ...VOLUME_UNITS, ...COUNT_UNITS, ...PACKAGE_UNITS]
 
 /**
  * Edits one quantity.
@@ -135,7 +130,7 @@ export function AmountEditor({
       {value.kind === 'unknown' ? (
         <p
           className={cn(
-            'col-span-2 flex items-center rounded-lg bg-amber-soft px-3 text-xs text-amber sm:col-span-3',
+            'bg-amber-soft text-amber col-span-2 flex items-center rounded-lg px-3 text-xs sm:col-span-3',
           )}
         >
           {t('amount.unknownHint')}

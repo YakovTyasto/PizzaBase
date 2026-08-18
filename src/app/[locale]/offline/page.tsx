@@ -6,11 +6,7 @@ import { EmptyState } from '@/components/ui/primitives'
  * The page the service worker serves when a navigation fails with no cached
  * copy available. Kept static so it can itself be cached at install time.
  */
-export default async function OfflinePage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function OfflinePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 

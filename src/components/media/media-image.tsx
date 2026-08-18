@@ -51,10 +51,7 @@ export function MediaImage({
   if (failed || missing) {
     return (
       <div
-        className={cn(
-          'flex items-center justify-center bg-paper-sunken text-ink-faint',
-          className,
-        )}
+        className={cn('bg-paper-sunken text-ink-faint flex items-center justify-center', className)}
         aria-hidden
       >
         <ImageOff className="size-5" />
@@ -64,7 +61,7 @@ export function MediaImage({
 
   if (!resolved) {
     // Reserve the space rather than collapsing the layout while the blob loads.
-    return <div className={cn('animate-pulse bg-paper-sunken', className)} aria-hidden />
+    return <div className={cn('bg-paper-sunken animate-pulse', className)} aria-hidden />
   }
 
   return (

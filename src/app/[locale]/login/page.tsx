@@ -34,7 +34,7 @@ export default async function LoginPage({
   return (
     <div className="mx-auto max-w-md py-8">
       <h1 className="font-display text-3xl font-semibold">{appConfig.name}</h1>
-      <p className="mt-1 text-sm text-ink-muted">{t('auth.signInHint')}</p>
+      <p className="text-ink-muted mt-1 text-sm">{t('auth.signInHint')}</p>
 
       <div className="mt-6">
         <LoginForm

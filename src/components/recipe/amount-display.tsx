@@ -29,7 +29,7 @@ export function AmountDisplay({
   if (formatted.kind === 'unknown') {
     return (
       <span
-        className={cn('inline-flex items-center gap-1 text-sm text-amber', className)}
+        className={cn('text-amber inline-flex items-center gap-1 text-sm', className)}
         title={t('amount.unknownHint')}
       >
         <HelpCircle aria-hidden className="size-3.5" />
@@ -40,14 +40,14 @@ export function AmountDisplay({
 
   if (formatted.kind === 'qualitative' && formatted.unit) {
     return (
-      <span className={cn('text-sm text-ink-muted italic', className)}>
+      <span className={cn('text-ink-muted text-sm italic', className)}>
         {t(`units.${formatted.unit}`, { count: 1 })}
       </span>
     )
   }
 
   return (
-    <span className={cn('tabular text-sm text-ink', className)}>
+    <span className={cn('tabular text-ink text-sm', className)}>
       <span className="font-medium">{formatted.value}</span>
       {formatted.unit ? (
         // A real space, not just a margin: the amount should read as "75 ml"

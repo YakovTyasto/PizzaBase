@@ -42,7 +42,7 @@ export function NotificationOptIn({ compact = false }: { compact?: boolean }) {
 
   if (permission === 'unsupported') {
     return (
-      <p className="flex items-start gap-2 text-xs text-ink-faint">
+      <p className="text-ink-faint flex items-start gap-2 text-xs">
         <BellOff aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         {t('notify.unsupported')}
       </p>
@@ -51,7 +51,7 @@ export function NotificationOptIn({ compact = false }: { compact?: boolean }) {
 
   if (permission === 'granted') {
     return (
-      <p className="flex items-start gap-2 text-xs text-basil">
+      <p className="text-basil flex items-start gap-2 text-xs">
         <Check aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         {background ? t('notify.granted') : t('notify.grantedForeground')}
       </p>
@@ -60,7 +60,7 @@ export function NotificationOptIn({ compact = false }: { compact?: boolean }) {
 
   if (permission === 'denied') {
     return (
-      <p className="flex items-start gap-2 text-xs text-ink-faint">
+      <p className="text-ink-faint flex items-start gap-2 text-xs">
         <BellOff aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         {t('notify.denied')}
       </p>
@@ -70,7 +70,7 @@ export function NotificationOptIn({ compact = false }: { compact?: boolean }) {
   return (
     <div className={compact ? 'space-y-1' : 'space-y-2'}>
       {!compact ? (
-        <p className="flex items-start gap-2 text-sm text-ink-muted">
+        <p className="text-ink-muted flex items-start gap-2 text-sm">
           <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
           {t('notify.why')}
         </p>
@@ -79,7 +79,7 @@ export function NotificationOptIn({ compact = false }: { compact?: boolean }) {
         <Bell aria-hidden />
         {t('notify.enable')}
       </Button>
-      <p className="text-xs text-ink-faint">
+      <p className="text-ink-faint text-xs">
         {background ? t('notify.scopeBackground') : t('notify.scopeForeground')}
       </p>
     </div>

@@ -105,7 +105,7 @@ export function SyncStatus() {
     <Card className={conflicts.length > 0 ? 'border-tomato' : undefined}>
       <CardBody className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="flex items-center gap-2 text-sm text-ink">
+          <span className="text-ink flex items-center gap-2 text-sm">
             <CloudUpload aria-hidden className="size-4" />
             {t('sync.queued', { count: waiting.length })}
           </span>
@@ -116,7 +116,7 @@ export function SyncStatus() {
 
         {conflicts.length > 0 ? (
           <div className="space-y-2">
-            <p className="flex items-start gap-2 text-sm text-tomato-strong">
+            <p className="text-tomato-strong flex items-start gap-2 text-sm">
               <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
               {t('sync.conflictHint')}
             </p>
@@ -153,11 +153,7 @@ export function SyncStatus() {
 
         {!offline && waiting.length > 0 ? (
           <Button variant="outline" size="sm" onClick={flush} disabled={pending}>
-            {pending ? (
-              <Loader2 aria-hidden className="animate-spin" />
-            ) : (
-              <RefreshCw aria-hidden />
-            )}
+            {pending ? <Loader2 aria-hidden className="animate-spin" /> : <RefreshCw aria-hidden />}
             {t('sync.retry')}
           </Button>
         ) : null}
@@ -169,7 +165,7 @@ export function SyncStatus() {
               clearSynced()
               refresh()
             }}
-            className="text-xs text-ink-faint underline underline-offset-2"
+            className="text-ink-faint text-xs underline underline-offset-2"
           >
             {t('sync.synced')}
           </button>

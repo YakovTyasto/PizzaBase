@@ -20,9 +20,7 @@ describe('what a translation may not change', () => {
   })
 
   it('reads a temperature as a temperature, not as a loose number', () => {
-    expect(extractInvariants('Bake at 250 °C')).toEqual([
-      { kind: 'temperature', value: '250°C' },
-    ])
+    expect(extractInvariants('Bake at 250 °C')).toEqual([{ kind: 'temperature', value: '250°C' }])
   })
 
   it('does not count a URL as a pile of numbers', () => {
@@ -76,9 +74,7 @@ describe('comparing a translation against its source', () => {
   })
 
   it('refuses a changed link', () => {
-    expect(
-      compareInvariants('See https://a.test/x', 'Смотрите https://b.test/x').ok,
-    ).toBe(false)
+    expect(compareInvariants('See https://a.test/x', 'Смотрите https://b.test/x').ok).toBe(false)
   })
 
   it('refuses a shifted timecode', () => {

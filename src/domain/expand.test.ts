@@ -25,10 +25,7 @@ describe('nested recipe expansion', () => {
     const { graph } = pizzaFixture()
     const { lines } = expandRecipe(graph, 'margherita', 1)
     const tomatoes = lines.find((l) => l.ingredientId === 'tomatoes')
-    expect(tomatoes?.provenance.map((p) => p.recipeSlug)).toEqual([
-      'margherita',
-      'tomato-sauce',
-    ])
+    expect(tomatoes?.provenance.map((p) => p.recipeSlug)).toEqual(['margherita', 'tomato-sauce'])
   })
 
   it('carries qualitative component ingredients through untouched', () => {

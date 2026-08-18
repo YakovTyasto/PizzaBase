@@ -110,11 +110,7 @@ export class UnitConversionError extends Error {
 export function convert(value: Decimal.Value, from: Unit, to: Unit): Decimal {
   if (from === to) return new Decimal(value)
   if (!areConvertible(from, to)) {
-    throw new UnitConversionError(
-      `Cannot convert ${from} to ${to}: incompatible units`,
-      from,
-      to,
-    )
+    throw new UnitConversionError(`Cannot convert ${from} to ${to}: incompatible units`, from, to)
   }
   const fromFactor = UNITS[from].toCanonical
   const toFactor = UNITS[to].toCanonical
@@ -143,11 +139,7 @@ export function convertWithDensity(
     (fromMeasure === 'mass' && toMeasure === 'volume')
 
   if (!crossesVolumeMass) {
-    throw new UnitConversionError(
-      `Cannot convert ${from} to ${to}: incompatible units`,
-      from,
-      to,
-    )
+    throw new UnitConversionError(`Cannot convert ${from} to ${to}: incompatible units`, from, to)
   }
   if (density === null || density === undefined) {
     throw new UnitConversionError(

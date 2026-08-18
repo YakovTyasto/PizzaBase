@@ -28,15 +28,15 @@ export function EvidencePanel({
   const itemsById = new Map(items.map((item) => [item.id, item]))
 
   const icon = (state: EvidenceView['reviewState']) => {
-    if (state === 'conflict') return <AlertTriangle aria-hidden className="size-4 text-tomato" />
-    if (state === 'confirmed') return <CheckCircle2 aria-hidden className="size-4 text-basil" />
-    return <CircleHelp aria-hidden className="size-4 text-amber" />
+    if (state === 'conflict') return <AlertTriangle aria-hidden className="text-tomato size-4" />
+    if (state === 'confirmed') return <CheckCircle2 aria-hidden className="text-basil size-4" />
+    return <CircleHelp aria-hidden className="text-amber size-4" />
   }
 
   return (
     <Card>
       <CardBody>
-        <ul className="divide-y divide-rule">
+        <ul className="divide-rule divide-y">
           {evidence.map((entry) => {
             const subject = entry.itemId ? itemsById.get(entry.itemId) : null
             return (
@@ -44,19 +44,19 @@ export function EvidencePanel({
                 <span className="mt-0.5 shrink-0">{icon(entry.reviewState)}</span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-medium text-ink">
+                    <span className="text-ink text-sm font-medium">
                       {subject ? subject.name.value : entry.field}
                     </span>
                     <Badge tone={entry.reviewState === 'conflict' ? 'accent' : 'warn'}>
                       {t(`evidence.${entry.reviewState}`)}
                     </Badge>
-                    <span className="tabular text-xs text-ink-faint">
+                    <span className="tabular text-ink-faint text-xs">
                       {t('evidence.confidence')} {Math.round(entry.confidence * 100)}%
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-ink-muted">{entry.note.value}</p>
+                  <p className="text-ink-muted mt-1 text-sm">{entry.note.value}</p>
                   {entry.reviewState === 'conflict' ? (
-                    <p className="mt-1 text-xs text-ink-faint">{t('evidence.conflictHint')}</p>
+                    <p className="text-ink-faint mt-1 text-xs">{t('evidence.conflictHint')}</p>
                   ) : null}
                 </div>
               </li>

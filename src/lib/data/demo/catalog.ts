@@ -1,11 +1,6 @@
 import 'server-only'
 import { Decimal } from 'decimal.js'
-import {
-  type DomainIngredient,
-  type DomainRecipe,
-  type RecipeGraph,
-  graphFrom,
-} from '@/domain'
+import { type DomainIngredient, type DomainRecipe, type RecipeGraph, graphFrom } from '@/domain'
 import { seedCatalog } from '@/lib/seed'
 import { seedAmountToDomain } from '@/lib/seed/to-domain'
 import type { SeedIngredient, SeedRecipe } from '@/lib/seed/types'

@@ -19,11 +19,7 @@ export async function generateMetadata({
   return { title: t('title') }
 }
 
-export default async function HistoryPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function HistoryPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 
@@ -54,11 +50,11 @@ export default async function HistoryPage({
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <Link
                       href={`/recipes/${session.recipeId}`}
-                      className="font-display text-lg font-semibold text-ink underline-offset-4 hover:underline"
+                      className="font-display text-ink text-lg font-semibold underline-offset-4 hover:underline"
                     >
                       {session.recipeName.value}
                     </Link>
-                    <span className="tabular text-xs text-ink-faint">
+                    <span className="tabular text-ink-faint text-xs">
                       {formatDateTime(new Date(session.startedAt), locale)}
                     </span>
                   </div>
@@ -89,7 +85,7 @@ export default async function HistoryPage({
                   {/* The scores that were actually given, in the order the
                       result screen asks for them. */}
                   {session.tasteRating || session.crustRating || session.handlingRating ? (
-                    <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
+                    <dl className="text-ink-muted flex flex-wrap gap-x-4 gap-y-1 text-xs">
                       {(
                         [
                           ['taste', session.tasteRating],
@@ -100,16 +96,15 @@ export default async function HistoryPage({
                         score ? (
                           <div key={key} className="flex gap-1">
                             <dt>{t(`cooking.${key}`)}:</dt>
-                            <dd className="tabular font-medium text-ink">{score}/5</dd>
+                            <dd className="tabular text-ink font-medium">{score}/5</dd>
                           </div>
                         ) : null,
                       )}
                     </dl>
                   ) : null}
 
-                  {session.actualActiveMinutes !== null ||
-                  session.actualPassiveMinutes !== null ? (
-                    <p className="tabular text-xs text-ink-faint">
+                  {session.actualActiveMinutes !== null || session.actualPassiveMinutes !== null ? (
+                    <p className="tabular text-ink-faint text-xs">
                       {session.actualActiveMinutes !== null
                         ? `${t('cooking.activeWork')}: ${session.actualActiveMinutes}′`
                         : ''}
@@ -123,13 +118,11 @@ export default async function HistoryPage({
                     <MediaStrip media={session.media} label={t('media.photos')} />
                   ) : null}
 
-                  {session.notes ? (
-                    <p className="text-sm text-ink-muted">{session.notes}</p>
-                  ) : null}
+                  {session.notes ? <p className="text-ink-muted text-sm">{session.notes}</p> : null}
 
                   {session.nextTime ? (
-                    <p className="rounded-lg bg-paper-sunken px-3 py-2 text-sm text-ink">
-                      <span className="text-xs text-ink-faint">{t('cooking.nextTime')}: </span>
+                    <p className="bg-paper-sunken text-ink rounded-lg px-3 py-2 text-sm">
+                      <span className="text-ink-faint text-xs">{t('cooking.nextTime')}: </span>
                       {session.nextTime}
                     </p>
                   ) : null}

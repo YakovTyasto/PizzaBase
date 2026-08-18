@@ -10,13 +10,7 @@ import { FallbackBadge } from './badges'
  * Steps distinguish hands-on work from waiting, because "20 minutes" and
  * "24 hours of doing nothing" are not the same commitment.
  */
-export function StepList({
-  steps,
-  items,
-}: {
-  steps: RecipeStepView[]
-  items: RecipeItemView[]
-}) {
+export function StepList({ steps, items }: { steps: RecipeStepView[]; items: RecipeItemView[] }) {
   const t = useTranslations()
 
   if (steps.length === 0) {
@@ -38,20 +32,20 @@ export function StepList({
             <Card>
               <CardBody>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="tabular flex size-7 shrink-0 items-center justify-center rounded-full bg-paper-sunken text-xs font-semibold text-ink-muted">
+                  <span className="tabular bg-paper-sunken text-ink-muted flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                     {index + 1}
                   </span>
                   <Badge tone="outline">{t(`phase.${step.phase}`)}</Badge>
 
                   {step.activeMinutes > 0 ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-ink-faint">
+                    <span className="text-ink-faint inline-flex items-center gap-1 text-xs">
                       <Clock aria-hidden className="size-3.5" />
                       {t('common.minutes', { count: step.activeMinutes })}
                     </span>
                   ) : null}
 
                   {step.waitMaxMinutes > 0 ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-ink-faint">
+                    <span className="text-ink-faint inline-flex items-center gap-1 text-xs">
                       <Hourglass aria-hidden className="size-3.5" />
                       {step.waitMinMinutes === step.waitMaxMinutes
                         ? formatWait(step.waitMaxMinutes, t)
@@ -60,7 +54,7 @@ export function StepList({
                   ) : null}
 
                   {step.temperatureC !== null ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-ink-faint">
+                    <span className="text-ink-faint inline-flex items-center gap-1 text-xs">
                       <Thermometer aria-hidden className="size-3.5" />
                       {step.temperatureC}°C
                     </span>
@@ -79,20 +73,20 @@ export function StepList({
                 </p>
 
                 {stepItems.length > 0 ? (
-                  <p className="mt-2 text-xs text-ink-faint">
+                  <p className="text-ink-faint mt-2 text-xs">
                     {t('cooking.ingredientsForStep')}:{' '}
                     {stepItems.map((item) => item.name.value).join(', ')}
                   </p>
                 ) : null}
 
                 {step.cues ? (
-                  <p className="mt-2 rounded-lg bg-basil-soft px-3 py-2 text-sm text-basil">
+                  <p className="bg-basil-soft text-basil mt-2 rounded-lg px-3 py-2 text-sm">
                     {step.cues.value}
                   </p>
                 ) : null}
 
                 {step.troubleshooting ? (
-                  <p className="mt-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber">
+                  <p className="bg-amber-soft text-amber mt-2 rounded-lg px-3 py-2 text-sm">
                     {step.troubleshooting.value}
                   </p>
                 ) : null}

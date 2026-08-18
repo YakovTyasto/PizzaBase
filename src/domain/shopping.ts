@@ -81,10 +81,7 @@ export function buildShoppingList(
   return { items }
 }
 
-function foldPantry(
-  graph: RecipeGraph,
-  pantry: readonly PantryEntry[],
-): Map<string, Amount> {
+function foldPantry(graph: RecipeGraph, pantry: readonly PantryEntry[]): Map<string, Amount> {
   const map = new Map<string, Amount>()
   for (const entry of pantry) {
     if (!isNumeric(entry.amount)) continue
@@ -116,7 +113,12 @@ function buildItem(
   let available: Amount | null = null
   let toBuy: Amount | null = required
 
-  if (required && isNumeric(required) && rawAvailable && canCombine(required, rawAvailable, density)) {
+  if (
+    required &&
+    isNumeric(required) &&
+    rawAvailable &&
+    canCombine(required, rawAvailable, density)
+  ) {
     available = convertAmount(rawAvailable, required.unit, density)
     toBuy = subtractAmount(required, rawAvailable, density)
   }
@@ -205,7 +207,11 @@ export function roundForDisplay(amount: Amount, unit: Unit): Amount {
   if (!isNumeric(amount)) return amount
   const places = unit === 'kg' || unit === 'l' ? 3 : unit === 'g' || unit === 'ml' ? 1 : 2
   return amount.kind === 'exact'
-    ? { kind: 'exact', value: amount.value.toDecimalPlaces(places, Decimal.ROUND_HALF_UP), unit: amount.unit }
+    ? {
+        kind: 'exact',
+        value: amount.value.toDecimalPlaces(places, Decimal.ROUND_HALF_UP),
+        unit: amount.unit,
+      }
     : {
         kind: 'range',
         min: amount.min.toDecimalPlaces(places, Decimal.ROUND_HALF_UP),

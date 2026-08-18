@@ -101,10 +101,22 @@ export function compareDrafts(drafts: RecipeDraft[]): ParameterRow[] {
   const totals = drafts.map(totalsOf)
 
   const rows: ParameterRow[] = [
-    row('hydration', totals.map((t) => percent(t.water, t.flour))),
-    row('salt', totals.map((t) => percent(t.salt, t.flour))),
-    row('yeast', totals.map((t) => percent(t.yeast, t.flour))),
-    row('preferment', totals.map((t) => percent(t.prefermentFlour, t.flour))),
+    row(
+      'hydration',
+      totals.map((t) => percent(t.water, t.flour)),
+    ),
+    row(
+      'salt',
+      totals.map((t) => percent(t.salt, t.flour)),
+    ),
+    row(
+      'yeast',
+      totals.map((t) => percent(t.yeast, t.flour)),
+    ),
+    row(
+      'preferment',
+      totals.map((t) => percent(t.prefermentFlour, t.flour)),
+    ),
     row(
       'flour',
       totals.map((t) => (t.flour.greaterThan(0) ? `${t.flour.toFixed(0)} g` : null)),

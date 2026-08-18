@@ -77,10 +77,7 @@ test.describe('recording how a cook went', () => {
     await expect(page.getByText('Записано без сети.')).toBeVisible({ timeout: 30_000 })
   })
 
-  test('replaying the queued result does not create a second record', async ({
-    page,
-    context,
-  }) => {
+  test('replaying the queued result does not create a second record', async ({ page, context }) => {
     await cookThrough(page, 'sisofo-forgotten-neapolitan')
 
     await context.setOffline(true)

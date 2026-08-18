@@ -25,13 +25,11 @@ export default function LocaleError({
     <div className="py-10">
       <Card className="border-tomato">
         <CardBody className="space-y-3">
-          <p className="flex items-center gap-2 font-medium text-tomato-strong">
+          <p className="text-tomato-strong flex items-center gap-2 font-medium">
             <AlertTriangle aria-hidden className="size-5" />
             {t('errors.generic')}
           </p>
-          {error.digest ? (
-            <p className="tabular text-xs text-ink-faint">{error.digest}</p>
-          ) : null}
+          {error.digest ? <p className="tabular text-ink-faint text-xs">{error.digest}</p> : null}
           <Button onClick={reset}>{t('common.retry')}</Button>
         </CardBody>
       </Card>

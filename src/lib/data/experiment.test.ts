@@ -30,7 +30,7 @@ function item(slug: string, value: string, group: string | null = null) {
   }
 }
 
-describe("comparing two versions of a dough", () => {
+describe('comparing two versions of a dough', () => {
   const before = dough({
     items: [item('flour-type-00', '1000'), item('water', '600'), item('salt-sea', '25')],
     baseBallWeightG: '250',
@@ -115,7 +115,9 @@ describe('parameters that need more than two ingredients', () => {
         },
       ],
     })
-    expect(compareDrafts([draft]).find((row) => row.key === 'fermentation')?.values).toEqual(['8 h'])
+    expect(compareDrafts([draft]).find((row) => row.key === 'fermentation')?.values).toEqual([
+      '8 h',
+    ])
     // The hottest step, which is the one that characterises the bake.
     expect(compareDrafts([draft]).find((row) => row.key === 'temperature')?.values).toEqual([
       '20 °C',
@@ -142,9 +144,7 @@ describe('parameters that need more than two ingredients', () => {
       ],
     })
     // An unknown amount contributes nothing rather than being read as zero.
-    expect(compareDrafts([draft]).find((row) => row.key === 'hydration')?.values).toEqual([
-      '0.00%',
-    ])
+    expect(compareDrafts([draft]).find((row) => row.key === 'hydration')?.values).toEqual(['0.00%'])
   })
 
   it('compares more than two versions at once', () => {

@@ -73,13 +73,13 @@ export function ShoppingList({
   const visibleCount = grouped.reduce((sum, [, list]) => sum + list.length, 0)
 
   if (visibleCount === 0) {
-    return <p className="text-sm text-ink-muted">{t('shopping.empty')}</p>
+    return <p className="text-ink-muted text-sm">{t('shopping.empty')}</p>
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-ink-muted">
+        <label className="text-ink-muted flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={includeOptional}
@@ -95,12 +95,12 @@ export function ShoppingList({
 
       {grouped.map(([categoryId, list]) => (
         <section key={categoryId}>
-          <h2 className="mb-2 text-sm font-semibold tracking-wide text-ink-muted uppercase">
+          <h2 className="text-ink-muted mb-2 text-sm font-semibold tracking-wide uppercase">
             {categoryNames[categoryId] ?? categoryId}
           </h2>
           <Card>
             <CardBody className="p-0 sm:p-0">
-              <ul className="divide-y divide-rule">
+              <ul className="divide-rule divide-y">
                 {list.map((item) => {
                   const isChecked = checked.has(item.ingredientId)
                   const name = ingredients[item.ingredientId]?.name ?? item.ingredientId
@@ -135,7 +135,7 @@ export function ShoppingList({
                             >
                               {name}
                               {item.optional ? (
-                                <span className="ml-1.5 text-xs font-normal text-ink-faint">
+                                <span className="text-ink-faint ml-1.5 text-xs font-normal">
                                   ({t('common.optional')})
                                 </span>
                               ) : null}
@@ -150,7 +150,7 @@ export function ShoppingList({
 
                           {/* Required / at home / to buy, so the deduction is visible. */}
                           {item.required && !item.fullyCovered ? (
-                            <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-faint">
+                            <p className="text-ink-faint mt-0.5 flex flex-wrap gap-x-3 text-xs">
                               <span>
                                 {t('shopping.required')}:{' '}
                                 <AmountDisplay
@@ -171,7 +171,7 @@ export function ShoppingList({
                           ) : null}
 
                           {item.packages ? (
-                            <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-ink-muted">
+                            <p className="text-ink-muted mt-1 inline-flex items-center gap-1.5 text-xs">
                               <Package aria-hidden className="size-3.5" />
                               {t('shopping.packages')}: {item.packages.count} ×{' '}
                               {item.packages.label ?? ''}
@@ -190,7 +190,7 @@ export function ShoppingList({
 
                           {/* Qualitative and unmergeable lines stay visible. */}
                           {item.separate.length > 0 ? (
-                            <p className="mt-1 text-xs text-ink-faint">
+                            <p className="text-ink-faint mt-1 text-xs">
                               {t('shopping.separateLines')}:{' '}
                               {item.separate.map((line, index) => (
                                 <span key={index}>
@@ -210,10 +210,8 @@ export function ShoppingList({
                               <button
                                 type="button"
                                 aria-expanded={isExpanded}
-                                onClick={() =>
-                                  setExpanded(isExpanded ? null : item.ingredientId)
-                                }
-                                className="inline-flex items-center gap-1 text-xs text-ink-faint hover:text-ink"
+                                onClick={() => setExpanded(isExpanded ? null : item.ingredientId)}
+                                className="text-ink-faint hover:text-ink inline-flex items-center gap-1 text-xs"
                               >
                                 <ChevronDown
                                   aria-hidden
@@ -227,10 +225,8 @@ export function ShoppingList({
                               {isExpanded ? (
                                 <ul className="mt-1 space-y-0.5 pl-4">
                                   {item.provenance.map((line, index) => (
-                                    <li key={index} className="text-xs text-ink-muted">
-                                      {line.chain
-                                        .map((id) => recipeNames[id] ?? id)
-                                        .join(' → ')}
+                                    <li key={index} className="text-ink-muted text-xs">
+                                      {line.chain.map((id) => recipeNames[id] ?? id).join(' → ')}
                                       {' · '}
                                       <AmountDisplay
                                         amount={deserializeAmount(line.amount)}

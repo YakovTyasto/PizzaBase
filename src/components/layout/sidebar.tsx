@@ -35,15 +35,15 @@ export function Sidebar() {
     })
 
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-rule px-3 py-6 lg:block">
+    <aside className="border-rule hidden w-56 shrink-0 border-r px-3 py-6 lg:block">
       <div className="px-3 pb-6">
-        <Link href="/" className="font-display text-xl font-semibold text-ink">
+        <Link href="/" className="font-display text-ink text-xl font-semibold">
           {appConfig.name}
         </Link>
       </div>
       <nav aria-label={t('menu')}>
         <ul className="space-y-1">{renderGroup(primaryNav)}</ul>
-        <hr className="my-4 border-0 border-t border-rule" />
+        <hr className="border-rule my-4 border-0 border-t" />
         <ul className="space-y-1">{renderGroup(secondaryNav)}</ul>
       </nav>
     </aside>

@@ -19,12 +19,12 @@ export async function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded focus:bg-ink focus:px-3 focus:py-2 focus:text-paper"
+          className="focus:bg-ink focus:text-paper sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded focus:px-3 focus:py-2"
         >
           {t('nav.skipToContent')}
         </a>
 
-        <header className="sticky top-0 z-30 border-b border-rule bg-paper/90 backdrop-blur">
+        <header className="border-rule bg-paper/90 sticky top-0 z-30 border-b backdrop-blur">
           <div className="page-shell flex h-14 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className="font-display truncate text-lg font-semibold lg:hidden">

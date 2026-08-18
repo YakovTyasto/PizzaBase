@@ -66,8 +66,7 @@ export function buildAliasIndex(entries: readonly AliasEntry[]): AliasIndex {
       if (!q) return true
       return keyed.some(
         (entry) =>
-          entry.ingredientId === ingredientId &&
-          (entry.key.includes(q) || q.includes(entry.key)),
+          entry.ingredientId === ingredientId && (entry.key.includes(q) || q.includes(entry.key)),
       )
     },
   }

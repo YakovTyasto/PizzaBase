@@ -137,15 +137,20 @@ describe('package rounding', () => {
   it('does not plan packages for a qualitative requirement', () => {
     const { graph } = pizzaFixture()
     const { lines } = expandRecipe(graph, 'margherita', 1)
-    const { items } = buildShoppingList(graph, lines, [], [
-      {
-        id: 'pkg-salt',
-        ingredientId: 'salt',
-        netAmount: exact(1, 'kg'),
-        label: 'Bag',
-        preferred: true,
-      },
-    ])
+    const { items } = buildShoppingList(
+      graph,
+      lines,
+      [],
+      [
+        {
+          id: 'pkg-salt',
+          ingredientId: 'salt',
+          netAmount: exact(1, 'kg'),
+          label: 'Bag',
+          preferred: true,
+        },
+      ],
+    )
     expect(items.find((i) => i.ingredientId === 'salt')?.packages).toBeNull()
   })
 })

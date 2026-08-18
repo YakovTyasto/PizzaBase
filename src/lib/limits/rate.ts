@@ -84,5 +84,8 @@ export function resetRateLimits(): void {
  * holding a raw user id or session token in memory any longer than the request.
  */
 export function rateKeyFor(identity: string | null): string {
-  return createHash('sha256').update(identity ?? 'anonymous').digest('hex').slice(0, 24)
+  return createHash('sha256')
+    .update(identity ?? 'anonymous')
+    .digest('hex')
+    .slice(0, 24)
 }

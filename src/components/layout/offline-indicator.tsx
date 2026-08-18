@@ -18,7 +18,7 @@ export function OfflineIndicator() {
   return (
     <div
       role="status"
-      className="flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-xs font-medium text-amber"
+      className="bg-amber-soft text-amber flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
     >
       <CloudOff aria-hidden className="size-3.5" />
       {t('offline')}

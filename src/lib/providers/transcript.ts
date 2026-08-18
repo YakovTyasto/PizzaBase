@@ -54,13 +54,12 @@ export function parseYouTubeUrl(input: string): string {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new InvalidYouTubeUrlError()
   if (!ALLOWED_HOSTS.has(url.hostname.toLowerCase())) throw new InvalidYouTubeUrlError()
 
-  const candidate =
-    url.hostname.toLowerCase().endsWith('youtu.be')
-      ? url.pathname.slice(1)
-      : (url.searchParams.get('v') ??
-        // /embed/<id>, /shorts/<id>, /live/<id>
-        url.pathname.split('/').filter(Boolean).at(-1) ??
-        '')
+  const candidate = url.hostname.toLowerCase().endsWith('youtu.be')
+    ? url.pathname.slice(1)
+    : (url.searchParams.get('v') ??
+      // /embed/<id>, /shorts/<id>, /live/<id>
+      url.pathname.split('/').filter(Boolean).at(-1) ??
+      '')
 
   if (!VIDEO_ID.test(candidate)) throw new InvalidYouTubeUrlError()
   return candidate
@@ -154,7 +153,9 @@ export function transcriptFromText(text: string): TranscriptResult {
 export function transcriptToPlainText(result: TranscriptResult, maxChars = 40_000): string {
   const joined = result.segments
     .map((segment) =>
-      segment.endSeconds > 0 ? `[${formatTimecode(segment.startSeconds)}] ${segment.text}` : segment.text,
+      segment.endSeconds > 0
+        ? `[${formatTimecode(segment.startSeconds)}] ${segment.text}`
+        : segment.text,
     )
     .join('\n')
   return joined.slice(0, maxChars)

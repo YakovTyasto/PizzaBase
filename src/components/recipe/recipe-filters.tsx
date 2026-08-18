@@ -68,11 +68,7 @@ export function RecipeFilters({
 
   const hasAny = [...searchParams.keys()].length > 0
 
-  const selectFor = (
-    key: string,
-    label: string,
-    options: { value: string; label: string }[],
-  ) => (
+  const selectFor = (key: string, label: string, options: { value: string; label: string }[]) => (
     <label className="min-w-0">
       <span className="sr-only">{label}</span>
       <Select
@@ -95,7 +91,7 @@ export function RecipeFilters({
       <div className="relative">
         <Search
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint"
+          className="text-ink-faint pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
         />
         <Input
           type="search"

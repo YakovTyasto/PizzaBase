@@ -23,10 +23,10 @@
   --color-amber: #9a6b16;
   --color-amber-soft: #f8eeda;
 
-  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino,
-    'Georgia', ui-serif, serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
+  --font-display:
+    'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, 'Georgia', ui-serif, serif;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
 
   --radius-card: 0.875rem;

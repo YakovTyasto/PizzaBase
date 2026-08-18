@@ -42,7 +42,7 @@ export function FallbackBadge({ text }: { text: LocalizedText }) {
 
   return (
     <span
-      className="ml-1.5 inline-flex items-center gap-1 align-middle text-[0.6875rem] text-ink-faint"
+      className="text-ink-faint ml-1.5 inline-flex items-center gap-1 align-middle text-[0.6875rem]"
       title={t('fallback.hint', {
         requested: '',
         shown: tLocale(text.fallbackFrom as Locale),

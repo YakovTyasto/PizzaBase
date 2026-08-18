@@ -20,7 +20,11 @@ export const categories: SeedCategory[] = [
     sortOrder: 30,
     names: { ru: 'Молочные продукты', en: 'Dairy', fr: 'Produits laitiers' },
   },
-  { slug: 'deli', sortOrder: 40, names: { ru: 'Мясная гастрономия', en: 'Deli', fr: 'Charcuterie' } },
+  {
+    slug: 'deli',
+    sortOrder: 40,
+    names: { ru: 'Мясная гастрономия', en: 'Deli', fr: 'Charcuterie' },
+  },
   {
     slug: 'canned',
     sortOrder: 50,
@@ -326,7 +330,7 @@ export const ingredients: SeedIngredient[] = [
     categorySlug: 'deli',
     measure: 'mass',
     baseUnit: 'g',
-    names: { ru: "Ндуйя", en: "'Nduja", fr: "'Nduja" },
+    names: { ru: 'Ндуйя', en: "'Nduja", fr: "'Nduja" },
     aliases: { ru: ['ндуя'], en: ['nduja'], fr: ['nduja'] },
   },
   {
@@ -551,7 +555,7 @@ export const substitutions: SeedSubstitution[] = [
     qualityGrade: 'acceptable',
     approved: true,
     explanations: {
-      ru: "Ндуйя намного острее и мягче по текстуре — кладите меньше.",
+      ru: 'Ндуйя намного острее и мягче по текстуре — кладите меньше.',
       en: "'Nduja is far spicier and spreadable, so use noticeably less.",
       fr: "La 'nduja est bien plus piquante et tartinable; dosez moins.",
     },

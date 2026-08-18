@@ -79,7 +79,10 @@ export async function deleteBlob(id: string): Promise<void> {
 
 export async function listBlobIds(): Promise<string[]> {
   try {
-    const keys = await withStore('readonly', (store) => store.getAllKeys() as IDBRequest<IDBValidKey[]>)
+    const keys = await withStore(
+      'readonly',
+      (store) => store.getAllKeys() as IDBRequest<IDBValidKey[]>,
+    )
     return keys.map(String)
   } catch {
     return []

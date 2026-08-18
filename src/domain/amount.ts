@@ -102,11 +102,7 @@ export function scaleAmount(a: Amount, factor: Decimal.Value): Amount {
   }
 }
 
-export function convertAmount(
-  a: Amount,
-  to: Unit,
-  density?: Decimal.Value | null,
-): Amount {
+export function convertAmount(a: Amount, to: Unit, density?: Decimal.Value | null): Amount {
   if (!isNumeric(a)) return a
   if (a.unit === to) return a
   const doConvert = (v: Decimal) =>

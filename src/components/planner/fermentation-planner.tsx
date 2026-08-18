@@ -92,7 +92,7 @@ export function FermentationPlanner({
               <Label htmlFor="window">{t('planner.window')}</Label>
               <div
                 id="window"
-                className="flex h-11 items-center gap-1 rounded-lg border border-rule p-1"
+                className="border-rule flex h-11 items-center gap-1 rounded-lg border p-1"
               >
                 {(['short', 'target', 'long'] as const).map((option) => (
                   <button
@@ -113,7 +113,7 @@ export function FermentationPlanner({
             </div>
           </div>
 
-          <p className="text-xs text-ink-faint">
+          <p className="text-ink-faint text-xs">
             {t('planner.totalTime', {
               duration:
                 window.min === window.max
@@ -129,10 +129,10 @@ export function FermentationPlanner({
           <Card className="border-tomato">
             <CardBody className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs tracking-wide text-ink-muted uppercase">
+                <p className="text-ink-muted text-xs tracking-wide uppercase">
                   {t('planner.startAt')}
                 </p>
-                <p className="font-display text-xl font-semibold text-ink">
+                <p className="font-display text-ink text-xl font-semibold">
                   {formatDateTime(plan.startAt, locale)}
                 </p>
               </div>
@@ -149,7 +149,7 @@ export function FermentationPlanner({
             not model fermentation from temperature on its own.
           */}
           {plan.hasApproximateTiming ? (
-            <p className="flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber">
+            <p className="bg-amber-soft text-amber flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
               <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
               <span>
                 <strong className="font-medium">{t('planner.approximate')}.</strong>{' '}
@@ -179,7 +179,7 @@ export function FermentationPlanner({
                   <Card>
                     <CardBody className="py-3">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="tabular font-display text-lg font-semibold text-ink">
+                        <span className="tabular font-display text-ink text-lg font-semibold">
                           {formatDateTime(scheduled.startAt, locale)}
                         </span>
                         <span className="flex items-center gap-1.5">
@@ -189,15 +189,13 @@ export function FermentationPlanner({
                           ) : null}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-ink">{step?.instruction}</p>
+                      <p className="text-ink mt-1 text-sm">{step?.instruction}</p>
                       {scheduled.waitMinutes > 0 ? (
-                        <p className="mt-0.5 text-xs text-ink-faint">
+                        <p className="text-ink-faint mt-0.5 text-xs">
                           {t('cooking.waiting')}: {formatDuration(scheduled.waitMinutes)}
                         </p>
                       ) : null}
-                      {step?.cues ? (
-                        <p className="mt-1 text-xs text-basil">{step.cues}</p>
-                      ) : null}
+                      {step?.cues ? <p className="text-basil mt-1 text-xs">{step.cues}</p> : null}
                     </CardBody>
                   </Card>
                 </li>
@@ -207,11 +205,11 @@ export function FermentationPlanner({
 
           <Card>
             <CardBody className="flex items-center justify-between gap-3 py-3">
-              <span className="flex items-center gap-2 text-sm text-ink-muted">
+              <span className="text-ink-muted flex items-center gap-2 text-sm">
                 <CalendarCheck aria-hidden className="size-4" />
                 {t('planner.serveTime')}
               </span>
-              <span className="tabular font-medium text-ink">
+              <span className="tabular text-ink font-medium">
                 {formatDateTime(plan.serveAt, locale)}
               </span>
             </CardBody>

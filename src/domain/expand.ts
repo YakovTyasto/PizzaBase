@@ -184,8 +184,7 @@ function expandUnit(
 }
 
 type FactorResult =
-  | { ok: true; factor: Decimal }
-  | { ok: false; code: ExpansionIssueCode; message: string }
+  { ok: true; factor: Decimal } | { ok: false; code: ExpansionIssueCode; message: string }
 
 function componentFactor(
   parent: DomainRecipe,

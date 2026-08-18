@@ -15,11 +15,7 @@ export async function generateMetadata({
   return { title: t('title') }
 }
 
-export default async function ScanPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function ScanPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 

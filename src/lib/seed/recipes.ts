@@ -722,7 +722,12 @@ const iacopelliPoolish: SeedRecipe = {
   },
   items: [
     { key: 'poolish-water', ingredientSlug: 'water', amount: amt(300, 'g'), group: 'poolish' },
-    { key: 'poolish-flour', ingredientSlug: 'flour-type-00', amount: amt(300, 'g'), group: 'poolish' },
+    {
+      key: 'poolish-flour',
+      ingredientSlug: 'flour-type-00',
+      amount: amt(300, 'g'),
+      group: 'poolish',
+    },
     { key: 'poolish-honey', ingredientSlug: 'honey', amount: amt(5, 'g'), group: 'poolish' },
     // Third-party transcriptions disagree; recorded as the stated range.
     {
