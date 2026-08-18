@@ -107,6 +107,18 @@ owner itself — doing both would create two places for the rule to drift.
 Selection is automatic: no Supabase credentials means demo mode, and
 `DEMO_MODE=true` forces it.
 
+## 3a. Cost controls
+
+Every AI-backed call is started by a deliberate gesture — pressing Analyse,
+Translate, Scan — so nothing bills on a page load. Beyond that: images are
+compressed before they are sent, transcripts are truncated, extractions are
+cached for half an hour by a hash of their source text (discarding a review
+screen and reopening it is normal; paying twice for a deterministic answer is
+not), and every paid kind has a per-owner rate window keyed by a hash of the
+identity rather than the identity itself. The counter is per instance and in
+memory — a real limitation, documented rather than assumed, and still enough
+to stop a stuck retry loop spending without bound.
+
 ## 4. Providers are adapters with an honest disabled state
 
 Every external capability — product lookup, vision, transcripts, extraction,
@@ -130,6 +142,21 @@ in `validateExtraction`; errors block approval outright.
 Nothing an import produces is saved automatically. The user reviews a
 *candidate*, and the review screen deliberately makes unknowns and conflicts
 loud.
+
+### Translation cannot change a number
+
+The translation adapter is the one with a guard in front of it. A model asked
+to translate "bake at 250 °C for 90 seconds" will return "480 °F for a minute
+and a half" — fluent, helpful, and fatal to an app whose premise is that the
+numbers are the ones the source stated. So every proposal is checked before it
+can be applied: numbers, ranges, temperatures, percentages, timecodes and URLs
+are extracted from both sides and compared as multisets, and a proposal that
+lost, gained or rounded a figure is shown struck through and cannot be applied
+at all. Unit conversion is the domain engine's job, done with decimals; it is
+never the translator's.
+
+Ingredient names are out of scope by construction: a recipe references
+ingredients by id and renders them from the catalog's own translations.
 
 ## 5. Internationalization covers content, not just chrome
 
@@ -178,10 +205,50 @@ connection mid-bake costs nothing. Timers store an **absolute end timestamp**
 rather than a countdown, so a phone that slept for twenty minutes comes back
 with the correct remaining time instead of twenty minutes behind.
 
-Offline *writes* are deliberately not queued. The first release is explicit
-that saved recipes are readable offline and cooking progress is local, but
-mutations need a connection. A half-working sync queue would be worse than a
-stated limitation.
+Offline *writes* are queued, but only two kinds: recipe drafts and cooking
+results. Both are last-writer-wins on one owner's own data, so replaying them
+is safe. Everything else — plans, pantry, imports — still needs a connection
+and fails loudly, because a queue that silently replayed a shopping-list edit
+against a server that had moved on would be worse than an honest refusal.
+
+Each entry carries an idempotency key derived from its content, and the write
+path records which keys it has applied. That is what makes a replay safe when
+the *response* was lost rather than the request: the retry resolves to the
+record that already exists instead of creating a second one. A server-side
+change is parked as a conflict with the local copy intact and the owner
+chooses; nothing is overwritten silently.
+
+## 7a. Notifications
+
+Timers and fermentation stages can announce themselves, behind an explicit
+opt-in that explains itself before asking. What the app will not do is promise
+background delivery: per the Web Push requirements that needs a subscription
+and, on iOS, the site installed to the home screen on 16.4 or later. So the
+copy is generated from what the platform can actually manage
+(`canDeliverInBackground`), and the in-page card stays the source of truth —
+`notify()` returns whether anything was shown precisely so no caller can
+assume it did.
+
+Server push has a documented seam (`src/lib/notify/push-adapter.ts`) with an
+honest disabled provider and the VAPID variables a future implementation would
+read. A half-built sender would be worse than none.
+
+## 7b. Photos
+
+Images are prepared in the browser before they go anywhere: the bytes are
+sniffed rather than trusted, the image is scaled to 1600 px and re-encoded
+through a canvas — which drops EXIF wholesale, including where the photo was
+taken — and only then uploaded. That is a privacy measure, a bandwidth measure
+and, for a Vision call billed by image size, a cost measure at once.
+
+The two backends store them where each can. Supabase puts the object in a
+private bucket namespaced by owner id, uploaded as the signed-in user so the
+storage policies decide rather than this code remembering to; pages mint
+short-lived signed URLs in one batched call for exactly the photos they
+render. Demo mode keeps the blob in the browser's own IndexedDB under the
+media id the recipe refers to — megabytes have no business in a session
+overlay every page read parses. One `<MediaImage>` covers both: a null URL
+means "resolve this locally".
 
 ## 8. Framework notes
 

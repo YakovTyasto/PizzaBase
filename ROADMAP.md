@@ -14,74 +14,87 @@ scheduling, and deterministic recommendation ranking.
 RU/EN/FR names, summaries, notes and step instructions with fallback; draft /
 needs-review / verified; ingredients and nested components; exact, range,
 qualitative and unknown quantities; groups, ordering and preparation notes;
-steps with phases, active and waiting durations, temperatures and sensory cues;
-source, attribution, credibility and per-field evidence; yield, diameter,
-shape, tray dimensions and ball weight, with live baker's percentages. Cycles
+steps with phases, durations, temperatures and sensory cues; source,
+attribution, credibility and per-field evidence; yield, diameter, shape, tray
+dimensions and ball weight, with live baker's percentages; and photos. Cycles
 are refused in three places — the component picker, the repository, and a
 database trigger.
 
-**Real persistence.** Writes go through the repository layer to whichever
-backend is configured. In Supabase one `save_recipe` function writes the whole
-recipe in a single transaction under the caller's own RLS, so a failure leaves
-no half-recipe. In demo mode changes are stored server-side on top of the seed
-and survive a browser restart; the cookie holds only a session id, and
-Settings has a confirmed "reset demo data".
+**Photos.** Multiple per recipe, with a cover, ordering, per-locale alt text
+and visible compression progress. Every image is scaled and re-encoded in the
+browser first, which strips EXIF including location. Supabase stores them in a
+private bucket namespaced by owner with short-lived signed URLs; demo mode
+keeps the bytes in the browser's own IndexedDB. Deleting a recipe cleans up
+its objects rather than leaving them unreachable and billed for.
 
-**Import that finishes.** Approving a candidate matches every extracted name
-against the catalog across all three locales and their aliases, creates new
-canonical ingredients only when asked, writes the recipe with its
-translations, steps, source, evidence and timecodes, and opens the saved
-recipe. A content-derived idempotency key means approving twice — or
-double-clicking — produces one recipe. The transcript is discarded once
-structuring succeeds.
+**Real persistence.** One `save_recipe_with_media` function writes a whole
+recipe — translations, ingredients, steps, source, evidence, photos — in a
+single transaction under the caller's own RLS. Demo mode stores changes
+server-side on top of the seed; they survive a browser restart, and Settings
+has a confirmed reset that clears the photos too.
 
-**Sign-in.** `/login` with Supabase magic links, refused before any mail is
-sent for an address that is not on the allowlist, re-checked when the link is
-used, and returning to the route the visitor was heading for. Demo mode gets
-its own clearly-labelled local entry rather than a form that could not work.
+**Import that finishes**, from three sources: a YouTube transcript, pasted
+text, or a photograph. Each goes through the same review screen and the same
+idempotent approval path — content-derived keys mean approving twice produces
+one recipe. Extracted names are matched against the catalog across all three
+locales and their aliases; new canonical ingredients are created only when
+asked. The source photograph is kept only if the owner ticks the box.
 
-**Versions and comparison.** Changing a verified recipe snapshots what it was.
-The comparison screen groups changes by quantities, timings, temperatures,
-steps and notes, shows baker's percentages before and after, and can make an
-earlier version primary without destroying the current one.
+**AI translation that cannot change a number.** Numbers, ranges, temperatures,
+percentages, timecodes and URLs are compared between source and proposal as
+multisets; anything that lost, gained or rounded a figure is shown struck
+through and cannot be applied. Existing hand-written translations are never
+overwritten without an explicit tick. Ingredient names are out of scope by
+construction.
+
+**Sign-in.** Magic links via Supabase, refused before any mail is sent for an
+address not on the allowlist and re-checked when the link is used. Demo mode
+has its own clearly-labelled local entry.
+
+**Versions, comparison and experiments.** Changing a verified recipe snapshots
+what it was. The comparison screen groups changes by quantity, timing,
+temperature, step and note; the experiments screen puts two or more versions
+side by side on hydration, salt, yeast, preferment share, flour, fermentation,
+ball weight, temperature and yield, records a hypothesis and a conclusion, and
+can promote a winner without destroying what it replaced.
+
+**Cooking, end to end.** One step at a time with timers and wake lock, then a
+result screen: overall, taste, crust, handling, the times it actually took, a
+note, what to change next time, and photos — recorded against the exact
+version and scale that were cooked, and shown in history.
 
 **Needs review.** Every unknown quantity, missing component yield and recorded
-conflict, gathered per recipe and answerable in place. Answering once updates
-everything downstream. Yield questions offer the real package sizes plus free
-entry — no size is ever preselected as the answer.
+conflict, answerable in place, with the real package sizes offered for yield
+questions and none of them preselected.
 
-**Offline writes.** Recipe drafts and cooking progress can be saved with no
-connection. They queue on the device, are labelled as queued rather than as
-saved, and replay when the connection returns, carrying an idempotency key so
-a replay whose response was lost cannot produce a duplicate. A server-side
-change is parked as a conflict with the local copy intact and the owner
-chooses. Plans, pantry and imports still require a connection and say so.
+**Offline writes.** Recipe drafts and cooking results queue on the device,
+are labelled as queued rather than as saved, and replay when the connection
+returns with an idempotency key so a lost response cannot produce a duplicate.
+A server-side change is parked as a conflict with the local copy intact.
+
+**Notifications** for timers and fermentation stages, behind an explicit
+opt-in, with copy generated from what the platform can actually deliver rather
+than from hope. Everything degrades identically when refused or unsupported.
+
+**Cost controls.** Images compressed before any Vision call, transcripts
+truncated, extractions cached by content hash, per-owner rate windows on
+extraction, vision and translation. Nothing calls a paid API on a page load.
 
 **Database.** Full schema with RLS on every table, a cycle-rejecting trigger,
-the authoring function and its idempotency ledger, and a generated idempotent
-seed. Verified against PostgreSQL 16 by `npm run db:verify`, which also
-asserts that `save_recipe` is atomic.
+private storage buckets with owner-scoped policies for all four operations,
+the authoring functions and their idempotency ledger, and a generated
+idempotent seed. `npm run db:verify` applies every migration to an empty
+database and asserts it.
 
-**Screens.** Home, library with URL-backed filters, recipe detail with live
-scaling, editor, needs-review, versions, sign-in, plan builder, consolidated
-shopping list, pantry, "cook with what I have", fermentation planner with
-`.ics` export, cooking mode with multiple timers and wake lock, import with
-side-by-side review, product scanner, settings, cook history, plus not-found /
-error / loading / offline states.
+**Production setup.** Startup validation that refuses incoherent
+configurations, a health endpoint that reports state without leaking secrets,
+`.env.example` split by what is actually required, `vercel.json`, and a README
+with a two-minute demo route and a step-by-step production route where every
+step ends in something you can check.
 
-**Internationalization.** RU / EN / FR across UI, content, search, numbers,
-dates and plurals, with fallback badges.
-
-**Providers.** Open Food Facts, OpenAI-compatible extraction / vision /
-translation / narration, Supadata transcripts — each with an honest disabled
-state naming its environment variable.
-
-**PWA.** Manifest, icons, hand-written service worker, offline reading and
-offline cooking progress.
-
-**Tests.** 213 unit tests (Vitest) and 156 end-to-end tests (Playwright, run
-at both 390 px and desktop widths), plus SQL assertions against real
-PostgreSQL. No test in the suite is skipped.
+**Tests.** 279 unit tests (Vitest) and 230 end-to-end tests (Playwright, run
+at both 390 px and desktop, plus a full-journey pass at 390/820/1280), and SQL
+assertions against real PostgreSQL. No test in the suite is skipped.
 
 ---
 
@@ -89,77 +102,70 @@ PostgreSQL. No test in the suite is skipped.
 
 These are gaps, stated plainly.
 
-### Photos on a recipe
+### Server push
 
-The editor covers every field the brief lists except images: `recipe_media`
-exists in the schema and the draft carries a `media` array, but there is no
-upload control and no storage bucket wired up. Everything else about a recipe
-can be authored through the UI.
+Notifications fire while the app is open. Delivering one to a closed app needs
+a push subscription, VAPID keys and a sender, and on iOS the site installed to
+the home screen. The seam exists (`src/lib/notify/push-adapter.ts`) with an
+honest disabled provider and documented variables; no sender is written, and
+the UI never claims otherwise.
 
-### AI translation button
+### Rate limiting across instances
 
-Translations are authored by hand in the RU/EN/FR tabs, and a missing one
-falls back to the origin language with a badge. The "translate this field"
-button that would call the configured provider is not built; the provider
-itself is.
+The limiter's window is per server process and in memory. On a single instance
+that is exactly right; across several it means the effective limit is the
+per-instance one times the instance count. A shared store would fix it and is
+another dependency to run — worth doing when there is more than one instance,
+not before.
 
-### End-of-cook capture
+### Cook-session photos in demo mode are local only
 
-A cooking session's progress and the recipe version it used are recorded.
-Rating, photo and a note at the end of a cook are implemented in the
-repository but not yet offered by the cooking screen.
+A cook photo is stored the same way a recipe photo is, so in demo mode it
+lives in that browser's IndexedDB. History on a second device shows the record
+without the picture. This is inherent to demo mode rather than a bug, and
+connecting Supabase resolves it.
 
-### Photo recipe import
+### Experiments do not read cook sessions yet
 
-The tab exists and explains what it needs. The vision provider and schema are
-implemented and used by the product scanner, so wiring the photo importer is
-mostly plumbing.
+The schema and the repository carry `session_ids`, and the comparison table is
+built from versions. Pulling the recorded ratings of the cooks that used each
+version into the same table is the obvious next step and is not built.
 
-### Experiments
+### HEIC
 
-`recipe_experiments` exists in the schema. Recording "I tried this variation
-and here is what happened" as a first-class thing, separate from a version, is
-not built.
-
-### Notifications
-
-Timers work in the foreground. Push notifications for a finished timer are a
-progressive enhancement that needs a permission flow and a push subscription;
-neither is built.
+Refused with a message explaining what to do instead. Decoding it would mean
+shipping a WebAssembly decoder to every visitor for a format only some phones
+produce, and only when their owner has chosen not to save JPEG.
 
 ---
 
 ## Known limitations
 
-**The owner's pizzas still have no quantities.** This is intentional and
-follows the brief: amounts nobody stated are `unknown`, and the app says so
-rather than inventing them. The difference from before is that they are now
-answerable — `/ru/review` lists every one of them, and answering updates the
-scaling, the shopping list and any recipe that uses them as a component.
+**The owner's pizzas still have no quantities.** Intentional: amounts nobody
+stated are `unknown`, and the app says so. They are answerable — `/ru/review`
+lists every one, and answering updates the scaling, the shopping list and any
+recipe using them as a component.
 
-**The tomato sauce has no yield** until a can size is chosen, so pizzas using
-it report "this component has no yield yet" rather than expanding. The review
-screen now offers the real package sizes alongside free entry, so this is a
-question the owner can settle in one click — but it is deliberately not
-settled for them.
+**The tomato sauce has no yield** until a can size is chosen. The review screen
+offers the real package sizes, and the product scanner can now remember a size
+it read from an actual label — so this is a question the owner can settle, and
+deliberately not one settled for them.
 
-**Demo mode is one machine.** Changes persist under `.impasto-demo/`, keyed by
-a session cookie. That survives a browser restart but does not follow you to
-another device, and it is not backed up. That is what connecting Supabase is
-for.
+**Demo mode is one machine.** Recipes persist under `.impasto-demo/` keyed by a
+session cookie, photos in the browser's IndexedDB. That survives a restart but
+does not follow you to another device and is not backed up. Connecting Supabase
+is what that is for.
 
-**The offline queue is per-device and narrow by design.** It covers recipe
-drafts and cooking progress. Anything else fails loudly rather than being
-replayed against a server that may have moved on.
+**The offline queue is per-device and narrow by design.** Recipe drafts and
+cooking results only; anything else fails loudly rather than being replayed
+against a server that may have moved on.
 
 ---
 
 ## Suggested order of work
 
-1. Photos: storage bucket, upload control, and the media strip on the recipe
-   page.
-2. End-of-cook capture, closing the loop from cooking session to history.
-3. The AI translation button in the editor.
-4. Photo recipe import.
-5. Experiments as a first-class record.
-6. Push notifications for timers.
+1. Pull cook-session ratings into the experiment comparison.
+2. Server push: subscription table with RLS, a VAPID sender, and the
+   installation prompt iOS requires.
+3. A shared rate-limit store, once there is more than one instance.
+4. Experiments across recipes, not just versions of one.

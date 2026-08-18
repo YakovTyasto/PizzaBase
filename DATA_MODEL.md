@@ -141,10 +141,25 @@ transient working data, cleared once structuring succeeds.
 | Table | Purpose |
 | --- | --- |
 | `recipe_versions` | Immutable `jsonb` snapshot, numbered per recipe, with an `is_primary` flag. |
-| `cook_sessions` | Recipe, version, scale factor, start/finish, rating, notes, outcome. |
+| `cook_sessions` | Recipe, **version**, scale factor, start/finish, overall/taste/crust/handling ratings, the times it actually took, a note and what to change next time. |
 | `cook_step_progress` | Completed steps and timer state. |
-| `cook_session_media` | Photos of the result. |
-| `recipe_experiments` | Comparison of two or more versions and what changed. |
+| `cook_session_media` | Photos of the result, with alt text and order. |
+| `recipe_experiments` | Two or more versions compared, with a hypothesis, a conclusion and an optional winning version. |
+
+A cook session points at the version it followed, which is what keeps a result
+meaningful after the recipe moves on — a rating against "the recipe" means
+nothing once the recipe has changed twice.
+
+`recipe_media` carries an `is_cover` flag with a partial unique index
+(`recipe_media_one_cover_idx`), so one cover per recipe is a fact the schema
+enforces rather than a convention every caller has to remember. Photos are
+written inside `save_recipe_with_media`, which composes `save_recipe` rather
+than duplicating it, so the recipe and its photos land in one transaction.
+
+`approved_imports` doubles as the idempotency ledger: it maps a
+content-derived key to the recipe it produced, which is what lets both a
+repeated import approval and a replayed offline draft resolve to the record
+that already exists.
 
 ---
 
@@ -185,10 +200,27 @@ A candidate never becomes a recipe without an explicit human approval.
 
 ## Storage
 
-Two private buckets, `recipe-media` and `scan-uploads`, both capped at 10 MB
-with an image MIME allow-list. Objects are namespaced `<user-id>/<filename>`
-and policies compare `(storage.foldername(name))[1]` to `auth.uid()`. There is
-no public write path into either bucket.
+Two private buckets, `recipe-media` and `scan-uploads`, capped at 2 MB and
+restricted to `image/jpeg`, `image/png` and `image/webp` — the three formats
+the app can actually decode. HEIC and AVIF were listed optimistically at first
+and removed: accepting them at the storage layer would only let a direct
+upload create a file nothing can render.
+
+Objects are namespaced `<user-id>/<filename>` and policies compare
+`(storage.foldername(name))[1]` to `auth.uid()`, for SELECT, INSERT, UPDATE and
+DELETE. UPDATE matters as much as the rest: uploads upsert, and without it an
+overwrite fails with a policy violation that reads like an application bug.
+There is no public write path into either bucket.
+
+Pages read through short-lived signed URLs, minted in one batched call for the
+photos they are about to render rather than for every row a query returned.
+
+Deleting a recipe collects its object paths *before* the row delete and removes
+the files after it commits — a storage delete cannot join the database
+transaction, so the order has to be the one that leaves no unreachable file.
+
+In demo mode nothing reaches this layer: the bytes live in the browser's own
+IndexedDB, keyed by the same media id, and "reset demo data" clears them.
 
 ---
 
