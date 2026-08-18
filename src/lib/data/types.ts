@@ -361,6 +361,21 @@ export interface Repository {
   /** The slug written under this key, or null when it has not been used. */
   findAppliedMutation(idempotencyKey: string): Promise<string | null>
   recordAppliedMutation(idempotencyKey: string, slug: string): Promise<void>
+  /**
+   * Reserves a key before the write it guards, atomically.
+   *
+   * `findAppliedMutation` on its own is check-then-act: two replays of the same
+   * queued draft both saw an unused key, both wrote, and the second got a fresh
+   * slug from the uniqueness check -- two recipes from the one key that existed
+   * to prevent exactly that. Arbitration has to happen in a single step, so it
+   * happens here: exactly one caller is told it acquired the key.
+   *
+   * `acquired: false` with a slug means the write already landed. With a null
+   * slug it means another attempt holds the key and has not finished.
+   */
+  claimMutation(idempotencyKey: string): Promise<{ acquired: boolean; slug: string | null }>
+  /** Gives a claim back, so a write that failed can be retried. */
+  releaseMutation(idempotencyKey: string): Promise<void>
 
   // --- Media ---------------------------------------------------------------
 

@@ -27,6 +27,26 @@ export type SaveResult =
   | { ok: false; error: ActionError; issues?: DraftValidationIssue[]; cycle?: string[] }
 
 /**
+ * Waits, briefly, for the caller holding a key to finish.
+ *
+ * The loser of a claim is a *replay*, not a second edit, so the useful answer
+ * is the winner's slug rather than an error. Polling for a couple of seconds
+ * covers the case that matters -- two replays of the same queued draft, moments
+ * apart -- without turning a genuinely stuck write into an indefinite wait.
+ */
+async function waitForMutation(
+  repository: { findAppliedMutation(key: string): Promise<string | null> },
+  key: string,
+): Promise<string | null> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const slug = await repository.findAppliedMutation(key)
+    if (slug) return slug
+  }
+  return null
+}
+
+/**
  * Saves a draft.
  *
  * `idempotencyKey` is optional and used by the two callers that can legitimately
@@ -62,14 +82,31 @@ export async function saveRecipeAction(
     const repository = getRepository()
 
     if (key) {
-      const already = await repository.findAppliedMutation(key)
-      if (already) {
+      // Claimed, not merely checked. Reading the ledger and then writing left a
+      // window in which two replays of the same queued draft both saw the key
+      // unused; both wrote, and the second was given a fresh slug by the
+      // uniqueness check. One key, two recipes -- exactly what it was meant to
+      // prevent. Only one caller can acquire it.
+      const claim = await repository.claimMutation(key)
+      if (!claim.acquired) {
+        const settled = claim.slug ?? (await waitForMutation(repository, key))
         // This exact write already landed; point at what it produced.
-        return { ok: true, slug: already, created: false, versionCreated: false }
+        if (settled) return { ok: true, slug: settled, created: false, versionCreated: false }
+        // Still in flight after the wait. Reporting failure lets the caller
+        // retry, which is safe; writing alongside it would not be.
+        return { ok: false, error: { code: 'conflict' } }
       }
     }
 
-    const result = await repository.saveRecipe(parsed.data)
+    let result
+    try {
+      result = await repository.saveRecipe(parsed.data)
+    } catch (error) {
+      // Give the key back, or a save that failed for any reason would lock out
+      // every later attempt at the same draft.
+      if (key) await repository.releaseMutation(key).catch(() => {})
+      throw error
+    }
     // Recorded only after the recipe genuinely exists, so a failed save can be
     // retried rather than being permanently treated as done.
     if (key) await repository.recordAppliedMutation(key, result.slug)

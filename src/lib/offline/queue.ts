@@ -37,6 +37,14 @@ export interface QueueEntry {
   error: DisplayError | null
   /** Set when the server reported a newer version than the one we started from. */
   serverVersion: string | null
+  /**
+   * When the current attempt was started, for entries in `syncing`.
+   *
+   * Distinguishes a request that is still on the wire from one whose document
+   * has gone away -- which the reclaim below needs and could not otherwise
+   * tell apart. See `reclaimOrphans`.
+   */
+  syncingSince: number | null
 }
 
 /**
@@ -121,6 +129,7 @@ export function enqueue(kind: QueueKind, idempotencyKey: string, payload: unknow
     status: 'pending',
     error: null,
     serverVersion: null,
+    syncingSince: null,
   }
 
   if (existing >= 0) entries[existing] = entry
@@ -183,20 +192,41 @@ export async function flushQueue(handlers: FlushHandlers): Promise<{
 }
 
 /**
+ * How long an attempt may be in flight before it counts as abandoned.
+ *
+ * The window exists because "still running" and "its document is gone" look
+ * identical in local storage: a document destroyed by a navigation never gets
+ * to write its result. Re-arming immediately therefore replayed a request that
+ * was still on the wire -- two saves of the same draft, racing the server's own
+ * idempotency check, and a second recipe when they both got past it.
+ *
+ * Fifteen seconds is longer than a save takes and shorter than a person waits
+ * before pressing Retry. Anything still 'syncing' after it has no document
+ * left to finish it.
+ */
+const ORPHAN_AFTER_MS = 15_000
+
+/**
  * Re-arms entries left mid-flight by a page that went away.
  *
- * Only a running flush sets 'syncing', and only one runs at a time, so an entry
- * still marked 'syncing' when a flush begins belongs to a document that is gone
+ * Only a running flush sets 'syncing', and only one runs at a time *within one
+ * document*, so an entry still marked 'syncing' well past the window above
+ * belongs to a document that is gone
  * -- a closed tab, or a navigation during the request. Replaying it is safe
  * because the idempotency key travels with it: if that lost attempt did reach
  * the server, the retry resolves to the same record instead of a second one.
  */
 function reclaimOrphans(): void {
   const entries = read()
-  if (!entries.some((entry) => entry.status === 'syncing')) return
+  const now = Date.now()
+
+  const isOrphan = (entry: QueueEntry) =>
+    entry.status === 'syncing' && now - (entry.syncingSince ?? 0) >= ORPHAN_AFTER_MS
+
+  if (!entries.some(isOrphan)) return
   write(
     entries.map((entry) =>
-      entry.status === 'syncing' ? { ...entry, status: 'pending' as const } : entry,
+      isOrphan(entry) ? { ...entry, status: 'pending' as const, syncingSince: null } : entry,
     ),
   )
 }
@@ -216,7 +246,11 @@ async function replay(handlers: FlushHandlers): Promise<{
   let conflicts = 0
 
   for (const entry of entries) {
-    updateEntry(entry.id, { status: 'syncing', attempts: entry.attempts + 1 })
+    updateEntry(entry.id, {
+      status: 'syncing',
+      attempts: entry.attempts + 1,
+      syncingSince: Date.now(),
+    })
     try {
       const handler = handlers[entry.kind]
       const result = await handler(entry.payload, entry.idempotencyKey)
@@ -225,22 +259,27 @@ async function replay(handlers: FlushHandlers): Promise<{
         updateEntry(entry.id, {
           status: 'conflict',
           error: result.error ?? null,
+          syncingSince: null,
         })
         conflicts += 1
         break
       }
       if (result.ok) {
-        updateEntry(entry.id, { status: 'synced', error: null })
+        updateEntry(entry.id, { status: 'synced', error: null, syncingSince: null })
         synced += 1
       } else {
-        updateEntry(entry.id, { status: 'failed', error: result.error ?? null })
+        updateEntry(entry.id, {
+          status: 'failed',
+          error: result.error ?? null,
+          syncingSince: null,
+        })
         failed += 1
       }
     } catch (error) {
       // A replay that threw client-side. The reason goes to the console; the
       // entry carries a code, because its text ends up on the screen.
       console.error('[sync]', error)
-      updateEntry(entry.id, { status: 'failed', error: { code: 'unknown' } })
+      updateEntry(entry.id, { status: 'failed', error: { code: 'unknown' }, syncingSince: null })
       failed += 1
     }
   }

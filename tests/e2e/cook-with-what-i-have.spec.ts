@@ -16,21 +16,31 @@ import { expect, test } from '@playwright/test'
  * first: the default is fresh basil, which is counted in leaves, and a pantry
  * full of leaves reaches none of the recipes under test.
  */
+const STOCKED = [
+  'Моцарелла фиор ди латте',
+  'Пармезан',
+  'Целые очищенные томаты в собственном соку',
+] as const
+
+/**
+ * Puts a known amount of three real ingredients in the pantry.
+ *
+ * Named rather than left at whatever sorts first -- the default is fresh basil,
+ * counted in leaves, and a pantry full of leaves reaches none of the recipes.
+ * Each row is confirmed before the next, so a write that did not land fails
+ * here instead of turning into an empty recommendations screen later.
+ */
 async function stockThePantry(page: import('@playwright/test').Page) {
   await page.goto('/ru/pantry')
+  await page.waitForLoadState('networkidle')
 
-  for (const name of [
-    'Моцарелла фиор ди латте',
-    'Пармезан',
-    'Целые очищенные томаты в собственном соку',
-  ]) {
+  for (const [index, name] of STOCKED.entries()) {
     await page.getByLabel('Ингредиенты', { exact: true }).selectOption({ label: name })
     await page.getByLabel('Количество').fill('900')
     await page.getByLabel('Единицы').selectOption('g')
     await page.getByRole('button', { name: 'Добавить' }).click()
-    // The row appearing is the proof the write landed; an error would show
-    // instead, and the recommendations screen would have nothing to work on.
-    await expect(page.getByText(name, { exact: false }).last()).toBeVisible()
+
+    await expect(page.getByText('900 г')).toHaveCount(index + 1, { timeout: 15_000 })
   }
 }
 
@@ -41,20 +51,19 @@ test.describe('the three states are distinguishable', () => {
     await page.goto('/ru/recommendations')
     await page.waitForLoadState('networkidle')
 
-    const cards = page.locator('li').filter({ has: page.getByRole('link') })
-    const count = await cards.count()
-    test.skip(count === 0, 'The pantry does not reach any recipe in this run.')
+    // Every seeded pizza leaves at least one quantity unstated, and each of
+    // them says so. There is nothing conditional about it: a stocked pantry
+    // full of the right products still cannot make any of them cookable while
+    // the recipes themselves do not say how much to use.
+    const incomplete = page.getByRole('link', { name: 'Дополнить рецепт' })
+    await expect(incomplete.first()).toBeVisible()
+    const cards = await incomplete.count()
+    expect(cards).toBeGreaterThan(0)
 
-    for (let index = 0; index < count; index += 1) {
-      const card = cards.nth(index)
-      const text = await card.innerText()
-
-      // A card may say it is cookable, or that products are missing, or that
-      // the recipe's own data is too thin -- never the first and third at once.
-      if (text.includes('Данных рецепта не хватает')) {
-        expect(text).not.toContain('Можно приготовить сейчас')
-      }
-    }
+    // The third state never doubles as the first.
+    await expect(page.getByText('Можно приготовить сейчас')).toHaveCount(0)
+    // And coverage is reported as unknown rather than as a number it cannot know.
+    await expect(page.getByText('Покрытие неизвестно').first()).toBeVisible()
   })
 
   test('names the ingredients whose quantity is missing', async ({ page }) => {
@@ -64,8 +73,8 @@ test.describe('the three states are distinguishable', () => {
     await page.waitForLoadState('networkidle')
 
     const incomplete = page.locator('li').filter({ hasText: 'Данных рецепта не хватает' }).first()
+    await expect(incomplete).toBeVisible()
 
-    if ((await incomplete.count()) === 0) return
     // The point of the state: it says what is missing and offers the fix.
     await expect(incomplete).toContainText(/Не указано количество/)
     await expect(incomplete.getByRole('link', { name: 'Дополнить рецепт' })).toBeVisible()

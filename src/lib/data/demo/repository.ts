@@ -83,6 +83,43 @@ function ingredientAliases(ingredient: SeedIngredient): string[] {
 }
 
 /**
+ * The value a claimed-but-unfinished idempotency key holds.
+ *
+ * Distinguishable from a recorded slug -- which is never empty -- so a reader
+ * can tell "someone is writing this" from "this was written".
+ */
+const CLAIMED = ''
+
+/**
+ * One overlay write at a time, per session.
+ *
+ * `updateOverlay` reads the file, applies a change and writes it back, with
+ * `await` on both ends. Two requests for the same session interleave at those
+ * awaits: both read the same overlay, and the second write silently discards
+ * whatever the first one added. That is a lost update on any pair of concurrent
+ * writes -- and it is what made the idempotency ledger unable to arbitrate,
+ * since two callers could both find a key unused and both claim it.
+ *
+ * Chaining per session keeps concurrent sessions independent while making each
+ * session's read-modify-write indivisible. A rejected link never poisons the
+ * chain: the next write starts either way.
+ */
+const sessionWrites = new Map<string, Promise<unknown>>()
+
+function serializePerSession<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
+  const previous = sessionWrites.get(sessionId) ?? Promise.resolve()
+  const next = previous.then(work, work)
+  sessionWrites.set(
+    sessionId,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  )
+  return next
+}
+
+/**
  * Serialises a value with its object keys in a fixed order.
  *
  * Plain `JSON.stringify` preserves insertion order, so two objects holding the
@@ -154,7 +191,7 @@ export class DemoRepository implements Repository {
   private async mutate(apply: (overlay: DemoOverlay) => DemoOverlay): Promise<DemoOverlay> {
     if (!this.writable) throw new ReadOnlyStoreError()
     const sessionId = await ensureSessionId()
-    return updateOverlay(sessionId, apply)
+    return serializePerSession(sessionId, () => updateOverlay(sessionId, apply))
   }
 
   private ingredientMap(overlay: DemoOverlay): Map<string, SeedIngredient> {
@@ -974,9 +1011,50 @@ export class DemoRepository implements Repository {
     const overlay = await this.overlay()
     const slug = overlay.appliedMutations[idempotencyKey]
     // A key whose recipe has since been deleted is treated as unused, so the
-    // owner can save it again rather than being pointed at nothing.
-    if (!slug) return null
+    // owner can save it again rather than being pointed at nothing. A key that
+    // is only claimed has no recipe yet, and reads as unused for the same reason.
+    if (!slug || slug === CLAIMED) return null
     return findRecipe(overlay, slug) ? slug : null
+  }
+
+  async claimMutation(idempotencyKey: string): Promise<{ acquired: boolean; slug: string | null }> {
+    let outcome: { acquired: boolean; slug: string | null } = { acquired: false, slug: null }
+
+    // Runs inside `mutate`, which is serialized per session, so the read of the
+    // ledger and the write that claims the key cannot be split by another
+    // request landing between them.
+    await this.mutate((overlay) => {
+      const recorded = overlay.appliedMutations[idempotencyKey]
+
+      if (recorded === CLAIMED) {
+        // Someone else holds it and has not finished.
+        outcome = { acquired: false, slug: null }
+        return overlay
+      }
+      if (recorded && findRecipe(overlay, recorded)) {
+        outcome = { acquired: false, slug: recorded }
+        return overlay
+      }
+
+      // Unused, or pointing at a recipe that has since been deleted.
+      outcome = { acquired: true, slug: null }
+      return {
+        ...overlay,
+        appliedMutations: { ...overlay.appliedMutations, [idempotencyKey]: CLAIMED },
+      }
+    })
+
+    return outcome
+  }
+
+  async releaseMutation(idempotencyKey: string): Promise<void> {
+    await this.mutate((overlay) => {
+      // Only a claim is released. A recorded slug is the finished write and
+      // must survive.
+      if (overlay.appliedMutations[idempotencyKey] !== CLAIMED) return overlay
+      const { [idempotencyKey]: _released, ...rest } = overlay.appliedMutations
+      return { ...overlay, appliedMutations: rest }
+    })
   }
 
   async recordAppliedMutation(idempotencyKey: string, slug: string): Promise<void> {

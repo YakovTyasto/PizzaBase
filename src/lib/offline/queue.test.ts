@@ -219,3 +219,88 @@ describe('offline mutation queue', () => {
     window.removeEventListener('impasto:queue-changed', spy)
   })
 })
+
+/**
+ * Reclaiming an attempt whose document went away.
+ *
+ * The regression: an entry was re-armed the moment any flush began, including
+ * one whose request was still on the wire from a document a navigation had
+ * just destroyed. Both attempts then reached the server, raced its idempotency
+ * check, and produced two recipes from the one key meant to prevent that.
+ */
+describe('entries left in flight', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.useRealTimers()
+  })
+
+  it('does not replay an attempt that is still running', async () => {
+    const entry = enqueue('recipe-draft', 'draft-1', { name: 'Sauce' })
+    // Marked as a flush would mark it, moments ago.
+    updateEntry(entry.id, { status: 'syncing', syncingSince: Date.now() - 500 })
+
+    const handled: string[] = []
+    await flushQueue({
+      'recipe-draft': async (_payload, key) => {
+        handled.push(key)
+        return { ok: true }
+      },
+      'cook-session': async () => ({ ok: true }),
+    })
+
+    expect(handled).toEqual([])
+    expect(listQueue()[0]?.status).toBe('syncing')
+  })
+
+  it('does replay one whose document is long gone', async () => {
+    const entry = enqueue('recipe-draft', 'draft-1', { name: 'Sauce' })
+    updateEntry(entry.id, { status: 'syncing', syncingSince: Date.now() - 60_000 })
+
+    const handled: string[] = []
+    await flushQueue({
+      'recipe-draft': async (_payload, key) => {
+        handled.push(key)
+        return { ok: true }
+      },
+      'cook-session': async () => ({ ok: true }),
+    })
+
+    expect(handled).toEqual(['draft-1'])
+    expect(listQueue()[0]?.status).toBe('synced')
+  })
+
+  it('treats an entry with no start time as abandoned', async () => {
+    // Written by an older build, before the marker existed.
+    const entry = enqueue('recipe-draft', 'draft-1', { name: 'Sauce' })
+    updateEntry(entry.id, { status: 'syncing', syncingSince: null })
+
+    const handled: string[] = []
+    await flushQueue({
+      'recipe-draft': async (_payload, key) => {
+        handled.push(key)
+        return { ok: true }
+      },
+      'cook-session': async () => ({ ok: true }),
+    })
+
+    expect(handled).toEqual(['draft-1'])
+  })
+
+  it('clears the start time on every terminal outcome', async () => {
+    enqueue('recipe-draft', 'ok', { name: 'A' })
+    await flushQueue({
+      'recipe-draft': async () => ({ ok: true }),
+      'cook-session': async () => ({ ok: true }),
+    })
+    expect(listQueue()[0]?.syncingSince).toBeNull()
+
+    window.localStorage.clear()
+    enqueue('recipe-draft', 'bad', { name: 'B' })
+    await flushQueue({
+      'recipe-draft': async () => ({ ok: false, error: { code: 'unknown' } }),
+      'cook-session': async () => ({ ok: true }),
+    })
+    expect(listQueue()[0]?.status).toBe('failed')
+    expect(listQueue()[0]?.syncingSince).toBeNull()
+  })
+})

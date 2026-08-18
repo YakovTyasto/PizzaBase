@@ -1415,6 +1415,48 @@ export class SupabaseRepository implements Repository {
     return recipe?.slug ?? null
   }
 
+  async claimMutation(idempotencyKey: string): Promise<{ acquired: boolean; slug: string | null }> {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    // The primary key on (owner_id, idempotency_key) is the arbiter: the
+    // winner's row goes in, the loser's is ignored and returns nothing. One
+    // statement, so there is no window between deciding and claiming.
+    const { data, error } = await supabase
+      .from('approved_imports')
+      .upsert(
+        { owner_id: user.id, idempotency_key: idempotencyKey, recipe_id: null },
+        { onConflict: 'owner_id,idempotency_key', ignoreDuplicates: true },
+      )
+      .select('idempotency_key')
+
+    if (error) throw new Error(error.message)
+    if (data && data.length > 0) return { acquired: true, slug: null }
+
+    // Someone else holds it: either finished, or still writing.
+    return { acquired: false, slug: await this.findAppliedMutation(idempotencyKey) }
+  }
+
+  async releaseMutation(idempotencyKey: string): Promise<void> {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Only an unfinished claim is released; a row that already points at a
+    // recipe is the record of a write that landed.
+    await supabase
+      .from('approved_imports')
+      .delete()
+      .eq('owner_id', user.id)
+      .eq('idempotency_key', idempotencyKey)
+      .is('recipe_id', null)
+  }
+
   async addPackageOption(input: {
     ingredientId: string
     label: string
@@ -1616,14 +1658,18 @@ export class SupabaseRepository implements Repository {
 
     const { data: recipeId } = await supabase.rpc('resolve_recipe_id', { p_slug: slug })
 
-    // The primary key makes a concurrent double submit fail rather than
-    // silently producing a second recipe.
-    const { error } = await supabase.from('approved_imports').insert({
-      owner_id: user.id,
-      idempotency_key: idempotencyKey,
-      recipe_id: recipeId ?? null,
-    })
-    if (error && !error.message.includes('duplicate')) throw new Error(error.message)
+    // An upsert rather than an insert, because `claimMutation` has normally
+    // already put the row there with a null recipe. This is the step that turns
+    // that claim into a record of what it produced.
+    const { error } = await supabase.from('approved_imports').upsert(
+      {
+        owner_id: user.id,
+        idempotency_key: idempotencyKey,
+        recipe_id: recipeId ?? null,
+      },
+      { onConflict: 'owner_id,idempotency_key' },
+    )
+    if (error) throw new Error(error.message)
   }
 }
 

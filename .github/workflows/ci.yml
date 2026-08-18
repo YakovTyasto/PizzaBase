@@ -1,0 +1,145 @@
+name: CI
+
+# Everything that has to hold before a change is merged, run the same way a
+# reader of the README would run it locally. No secrets: the app is designed to
+# boot and be fully exercisable with an empty environment, and the database
+# checks use a throwaway PostgreSQL with the Supabase-managed objects stubbed.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  # A newer push supersedes an in-flight run for the same ref.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # `engines` in package.json requires >=20.9. 20 is the floor the project
+  # claims to support, so that is what the checks run against.
+  NODE_VERSION: '20'
+
+jobs:
+  check:
+    name: Format, types, lint, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          # The build must succeed with no credentials at all, which is the
+          # state a first deployment is in.
+          DEMO_MODE: 'true'
+          NEXT_PUBLIC_DEMO_MODE: 'true'
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        # Chromium only: both projects pin it, so pulling the other engines
+        # would be minutes spent on browsers no test opens.
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        # The suite builds the app and starts it itself, in demo mode, and
+        # keeps its storage under the runner's temp directory.
+        run: npm run test:e2e
+
+      - name: Upload the report when something failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  database:
+    name: Migrations and seed
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # A throwaway database in a container that lives for one job. The
+          # password is not a secret: nothing outside this job can reach it.
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install the PostgreSQL client
+        # The runner image ships a client, but not necessarily 16. Matching the
+        # server keeps psql from warning about a version it does not know.
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-client-16
+          psql --version
+
+      - name: Regenerate the seed and check it is committed
+        # `supabase/seed.sql` is generated from the TypeScript catalog. If the
+        # two have drifted, the file verified below is not the file in the repo.
+        run: |
+          npm run seed
+          git diff --exit-code -- supabase/seed.sql
+
+      - name: Verify migrations, seed idempotency and RLS
+        run: npm run db:verify

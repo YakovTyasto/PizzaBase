@@ -1,3 +1,4 @@
+import { Decimal } from 'decimal.js'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -145,5 +146,117 @@ describe('a read-only deployment cannot create versions at all', () => {
     await expect(repository.saveRecipe({ ...draft, difficulty: 4 })).rejects.toBeInstanceOf(
       ReadOnlyStoreError,
     )
+  })
+})
+
+/**
+ * The idempotency ledger, under concurrency.
+ *
+ * A queued offline draft can be replayed twice -- a navigation mid-request
+ * leaves one attempt on the wire while the next document starts another. The
+ * key exists so that produces one recipe. Reading the ledger and then writing
+ * left a window between the two in which both attempts saw the key unused, so
+ * arbitration now happens in a single claim.
+ */
+describe('claiming an idempotency key', () => {
+  beforeEach(() => {
+    rmSync(path.join(dataDir, `${SESSION}.json`), { force: true })
+  })
+
+  it('is acquired by exactly one of two concurrent callers', async () => {
+    const repository = await freshRepository()
+
+    const [first, second] = await Promise.all([
+      repository.claimMutation('draft-key'),
+      repository.claimMutation('draft-key'),
+    ])
+
+    expect([first.acquired, second.acquired].filter(Boolean)).toHaveLength(1)
+    // The loser is told there is no result yet, rather than being waved through.
+    const loser = first.acquired ? second : first
+    expect(loser.slug).toBeNull()
+  })
+
+  it('hands later callers the slug once the winner records it', async () => {
+    const repository = await freshRepository()
+
+    expect((await repository.claimMutation('draft-key')).acquired).toBe(true)
+    await repository.recordAppliedMutation('draft-key', 'sisofo-forgotten-neapolitan')
+
+    const again = await repository.claimMutation('draft-key')
+    expect(again.acquired).toBe(false)
+    expect(again.slug).toBe('sisofo-forgotten-neapolitan')
+    expect(await repository.findAppliedMutation('draft-key')).toBe('sisofo-forgotten-neapolitan')
+  })
+
+  it('reads a claim that has not finished as unused', async () => {
+    const repository = await freshRepository()
+    await repository.claimMutation('draft-key')
+
+    // A claim is not a result: nothing was written under this key yet.
+    expect(await repository.findAppliedMutation('draft-key')).toBeNull()
+  })
+
+  it('gives the key back when the write it guarded failed', async () => {
+    const repository = await freshRepository()
+
+    expect((await repository.claimMutation('draft-key')).acquired).toBe(true)
+    await repository.releaseMutation('draft-key')
+
+    expect((await repository.claimMutation('draft-key')).acquired).toBe(true)
+  })
+
+  it('never releases a key that already recorded a recipe', async () => {
+    const repository = await freshRepository()
+
+    await repository.claimMutation('draft-key')
+    await repository.recordAppliedMutation('draft-key', 'sisofo-forgotten-neapolitan')
+    await repository.releaseMutation('draft-key')
+
+    expect(await repository.findAppliedMutation('draft-key')).toBe('sisofo-forgotten-neapolitan')
+  })
+
+  it('lets the key be reused when its recipe has since been deleted', async () => {
+    const repository = await freshRepository()
+
+    await repository.claimMutation('draft-key')
+    await repository.recordAppliedMutation('draft-key', 'recipe-that-never-existed')
+
+    // Pointing at nothing is worse than being unused: the owner can save again.
+    const again = await repository.claimMutation('draft-key')
+    expect(again.acquired).toBe(true)
+  })
+})
+
+/**
+ * Concurrent overlay writes.
+ *
+ * `updateOverlay` reads, changes and writes back with an await on each end, so
+ * two requests for one session used to interleave and the second silently
+ * discarded whatever the first had added.
+ */
+describe('two writes to one session', () => {
+  beforeEach(() => {
+    rmSync(path.join(dataDir, `${SESSION}.json`), { force: true })
+  })
+
+  it('keeps both, rather than losing the first', async () => {
+    const repository = await freshRepository()
+
+    await Promise.all([
+      repository.addPantryItem({
+        ingredientId: 'salt-sea',
+        amount: { kind: 'exact', value: new Decimal(500), unit: 'g' },
+        location: 'pantry',
+      }),
+      repository.addPantryItem({
+        ingredientId: 'flour-type-00',
+        amount: { kind: 'exact', value: new Decimal(1000), unit: 'g' },
+        location: 'pantry',
+      }),
+    ])
+
+    const pantry = await repository.getPantry('ru')
+    expect(pantry.map((item) => item.ingredientId).sort()).toEqual(['flour-type-00', 'salt-sea'])
   })
 })

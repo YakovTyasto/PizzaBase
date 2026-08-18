@@ -1,4 +1,6 @@
+import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { E2E_DEMO_DIR } from './demo-storage'
 
 /**
  * Persistence, and the honesty of the UI about it.
@@ -38,13 +40,24 @@ test.describe('a write that succeeds survives a reload', () => {
 
     const select = page.getByLabel('Добавить пиццу')
     const name = await select.locator('option').first().innerText()
+
+    // Armed before the click: the Server Action's own response is the only
+    // reliable signal that the write landed. The optimistic row appears
+    // immediately and says nothing about the server, and network-quiet is a
+    // guess that can resolve in the gap before the request is even sent --
+    // reloading there asks for a plan the server has not been told about, and
+    // reports the test outrunning the app as the app losing the pizza.
+    const saved = page.waitForResponse(
+      (response) => response.request().method() === 'POST' && response.status() < 400,
+    )
     await page.getByRole('button', { name: 'Добавить' }).click()
 
+    // Optimistically, first.
     await expect(page.getByRole('heading', { name, level: 3 })).toBeVisible()
+    await saved
 
     await page.reload()
     await page.waitForLoadState('networkidle')
-    // The optimistic row and the stored row have to be the same row.
     await expect(page.getByRole('heading', { name, level: 3 })).toBeVisible({ timeout: 15_000 })
   })
 
@@ -57,7 +70,11 @@ test.describe('a write that succeeds survives a reload', () => {
     await page.getByLabel('Ингредиенты', { exact: true }).selectOption({ label: 'Пармезан' })
     await page.getByLabel('Количество').fill('750')
     await page.getByLabel('Единицы').selectOption('g')
+    const saved = page.waitForResponse(
+      (response) => response.request().method() === 'POST' && response.status() < 400,
+    )
     await page.getByRole('button', { name: 'Добавить' }).click()
+    await saved
 
     await expect(page.getByText('750 г').first()).toBeVisible()
 
@@ -75,13 +92,37 @@ test.describe('a write that succeeds survives a reload', () => {
  * the suite is pointed at an external base URL, whose mode is not ours to set.
  */
 test.describe('read-only demo', () => {
-  test.skip(Boolean(process.env.E2E_BASE_URL), 'Runs against a server this suite starts itself.')
+  // The only skip left in the suite, and it is a capability guard rather than
+  // a defect being parked: these tests start a second server in a mode of
+  // their own choosing, which is impossible when the run is pointed at an
+  // external deployment. `npm run test:e2e` and CI both run them.
+  test.skip(
+    Boolean(process.env.E2E_BASE_URL),
+    'Needs a server this suite starts itself, to force read-only mode.',
+  )
 
-  const PORT = Number(process.env.READONLY_PORT ?? 3199)
-  const BASE = `http://127.0.0.1:${PORT}`
+  /*
+   * These share one server, so they run in one worker, in order.
+   *
+   * Without this the group's tests are spread across workers and every one of
+   * them runs `beforeAll` -- each spawning a server on the same port, all but
+   * the first dying of EADDRINUSE, and their tests meeting the browser's own
+   * "this page couldn't load". Serialising the group is the honest expression
+   * of what it needs; the rest of the suite stays parallel.
+   */
+  test.describe.configure({ mode: 'serial' })
+
+  // A port per worker slot, because the mobile and desktop projects reach this
+  // group at the same time and would otherwise want the same one. Resolved in
+  // the hook: `test.info()` has nothing to report while the group is being
+  // declared.
+  const FIRST_PORT = Number(process.env.READONLY_PORT ?? 3190)
+  let BASE = ''
   let server: import('node:child_process').ChildProcess | undefined
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({}, testInfo) => {
+    const PORT = FIRST_PORT + testInfo.parallelIndex
+    BASE = `http://127.0.0.1:${PORT}`
     const { spawn } = await import('node:child_process')
     server = spawn('npx', ['next', 'start', '-p', String(PORT)], {
       env: {
@@ -89,6 +130,9 @@ test.describe('read-only demo', () => {
         DEMO_MODE: 'true',
         NEXT_PUBLIC_DEMO_MODE: 'true',
         IMPASTO_DEMO_READONLY: 'true',
+        // Read-only means nothing is written, but pointing it away from the
+        // repository keeps that a fact rather than a hope.
+        IMPASTO_DEMO_DIR: path.join(E2E_DEMO_DIR, 'readonly'),
       },
       stdio: 'ignore',
       shell: process.platform === 'win32',
