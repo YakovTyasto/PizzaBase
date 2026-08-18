@@ -60,7 +60,10 @@ test.describe('cooking mode', () => {
   test('runs a timer that keeps counting across a reload', async ({ page }) => {
     await page.goto('/ru/recipes/sisofo-forgotten-neapolitan/cook')
 
-    await page.getByRole('button', { name: /Запустить таймер/ }).click()
+    // The step's own suggested timer, not the custom one next to the minutes
+    // box -- both are named "start timer" now that the icon-only button has an
+    // accessible name.
+    await page.getByRole('button', { name: /Запустить таймер \(/ }).click()
 
     const timer = page.getByRole('timer').first()
     await expect(timer).toBeVisible()
