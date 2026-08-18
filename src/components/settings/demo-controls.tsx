@@ -16,7 +16,14 @@ import { clearBlobs } from '@/lib/media/idb'
  * It drops only the overlay the owner created; the bundled seed reappears
  * untouched underneath.
  */
-export function DemoControls({ demoMode }: { demoMode: boolean }) {
+export function DemoControls({
+  demoMode,
+  writable,
+}: {
+  demoMode: boolean
+  /** False on a read-only demo: there is nothing stored, so nothing to reset. */
+  writable: boolean
+}) {
   const t = useTranslations()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -26,7 +33,7 @@ export function DemoControls({ demoMode }: { demoMode: boolean }) {
     return (
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <span className="text-sm text-ink-muted">{t('auth.signOut')}</span>
+          <span className="text-ink-muted text-sm">{t('auth.signOut')}</span>
           <Button
             variant="outline"
             size="sm"
@@ -45,12 +52,24 @@ export function DemoControls({ demoMode }: { demoMode: boolean }) {
     )
   }
 
+  if (!writable) {
+    return (
+      <Card className="border-amber">
+        <CardBody className="space-y-1">
+          <p className="text-ink font-medium">{t('demo.readOnly')}</p>
+          <p className="text-ink-muted text-sm">{t('demo.readOnlyHint')}</p>
+          <p className="text-ink-faint text-sm">{t('demo.readOnlyFix')}</p>
+        </CardBody>
+      </Card>
+    )
+  }
+
   return (
     <Card className="border-tomato">
       <CardBody className="space-y-3">
         <div>
-          <p className="font-medium text-ink">{t('demo.reset')}</p>
-          <p className="mt-0.5 text-sm text-ink-muted">{t('demo.resetHint')}</p>
+          <p className="text-ink font-medium">{t('demo.reset')}</p>
+          <p className="text-ink-muted mt-0.5 text-sm">{t('demo.resetHint')}</p>
         </div>
 
         <Button
@@ -75,7 +94,7 @@ export function DemoControls({ demoMode }: { demoMode: boolean }) {
         </Button>
 
         {done ? (
-          <p role="status" className="flex items-center gap-2 text-sm text-basil">
+          <p role="status" className="text-basil flex items-center gap-2 text-sm">
             <CheckCircle2 aria-hidden className="size-4" />
             {t('demo.resetDone')}
           </p>

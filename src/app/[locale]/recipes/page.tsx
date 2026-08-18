@@ -2,12 +2,7 @@ import { Plus, Search } from 'lucide-react'
 import { signCovers } from '@/lib/data/sign-media'
 import type { Metadata } from 'next'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import type {
-  AuthenticityClass,
-  Locale,
-  RecipeStatus,
-  RecipeType,
-} from '@/domain'
+import type { AuthenticityClass, Locale, RecipeStatus, RecipeType } from '@/domain'
 import { RecipeCard } from '@/components/recipe/recipe-card'
 import { RecipeFilters } from '@/components/recipe/recipe-filters'
 import { Button } from '@/components/ui/button'
@@ -45,21 +40,68 @@ export default async function RecipesPage({
   const t = await getTranslations()
   const repository = getRepository()
 
-  const filter = {
-    query: single('q') ?? undefined,
-    type: (single('type') as RecipeType | null) ?? null,
-    styleId: single('style'),
-    authenticity: (single('class') as AuthenticityClass | null) ?? null,
-    status: (single('status') as RecipeStatus | null) ?? null,
-    ovenProfileId: single('oven'),
-  }
-
-  const [rawRecipes, styles, ovens] = await Promise.all([
-    repository.listRecipes(locale as Locale, filter),
+  const [styles, ovens] = await Promise.all([
     repository.listStyles(locale as Locale),
     repository.listOvenProfiles(locale as Locale),
   ])
-  const recipes = await signCovers(rawRecipes)
+
+  /**
+   * A filter value is only applied if it still means something.
+   *
+   * Filters live in the URL so a view can be shared and restored, which means a
+   * bookmark can outlive the style it names, and switching locale carries the
+   * whole query string across. An unrecognised value used to be passed straight
+   * to the repository, which matched nothing -- so the library looked empty
+   * when in fact the *filter* was stale. Dropping it shows the catalog and says
+   * so, instead of hiding fourteen recipes behind a dead parameter.
+   */
+  const known = <T extends string>(value: string | null, allowed: readonly T[]): T | null =>
+    value && (allowed as readonly string[]).includes(value) ? (value as T) : null
+
+  const requested = {
+    type: single('type'),
+    style: single('style'),
+    class: single('class'),
+    status: single('status'),
+    oven: single('oven'),
+  }
+
+  const filter = {
+    query: single('q') ?? undefined,
+    type: known<RecipeType>(requested.type, ['pizza', 'dough', 'sauce', 'prep']),
+    styleId: known(
+      requested.style,
+      styles.map((style) => style.id),
+    ),
+    authenticity: known<AuthenticityClass>(requested.class, [
+      'traditional',
+      'pizzaiolo',
+      'modern_italian',
+      'adapted',
+      'experimental',
+      'user_verified',
+    ]),
+    status: known<RecipeStatus>(requested.status, [
+      'draft',
+      'needs_review',
+      'verified',
+      'archived',
+    ]),
+    ovenProfileId: known(
+      requested.oven,
+      ovens.map((oven) => oven.id),
+    ),
+  }
+
+  const droppedFilters = [
+    requested.type && !filter.type,
+    requested.style && !filter.styleId,
+    requested.class && !filter.authenticity,
+    requested.status && !filter.status,
+    requested.oven && !filter.ovenProfileId,
+  ].some(Boolean)
+
+  const recipes = await signCovers(await repository.listRecipes(locale as Locale, filter))
 
   const hasFilters = Object.values(filter).some(Boolean)
 
@@ -77,7 +119,15 @@ export default async function RecipesPage({
 
       <RecipeFilters styles={styles} ovens={ovens} />
 
-      <p className="text-sm text-ink-muted">{t('recipes.resultCount', { count: recipes.length })}</p>
+      {droppedFilters ? (
+        <p role="status" className="bg-amber-soft text-amber rounded-lg px-3 py-2 text-sm">
+          {t('recipes.filterCleared')}
+        </p>
+      ) : null}
+
+      <p className="text-ink-muted text-sm">
+        {t('recipes.resultCount', { count: recipes.length })}
+      </p>
 
       {recipes.length === 0 ? (
         <EmptyState

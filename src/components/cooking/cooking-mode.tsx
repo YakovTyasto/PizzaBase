@@ -17,7 +17,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NotificationOptIn } from '@/components/notify/notification-opt-in'
 import { Button } from '@/components/ui/button'
-import { Badge, Card, CardBody, Input } from '@/components/ui/primitives'
+import { Badge, Card, CardBody, NumericInput } from '@/components/ui/primitives'
 import { useHydrated } from '@/lib/client-env'
 import { notify } from '@/lib/notify/local'
 import { Link } from '@/i18n/navigation'
@@ -114,10 +114,7 @@ export function CookingMode({
 
   const currentIndex = progress.currentStep
   const step = steps[Math.min(currentIndex, steps.length - 1)]
-  const completed = useMemo(
-    () => new Set(progress.completedStepIds),
-    [progress.completedStepIds],
-  )
+  const completed = useMemo(() => new Set(progress.completedStepIds), [progress.completedStepIds])
 
   const [timerMinutes, setTimerMinutes] = useState('')
 
@@ -142,11 +139,14 @@ export function CookingMode({
   }, [timers, now, t])
 
   if (!hydrated || !step) {
-    return <p className="text-sm text-ink-muted">{t('common.loading')}</p>
+    return <p className="text-ink-muted text-sm">{t('common.loading')}</p>
   }
 
   const goTo = (index: number) => {
-    persist({ ...progress, currentStep: Math.max(0, Math.min(steps.length - 1, index)) })
+    persist({
+      ...progress,
+      currentStep: Math.max(0, Math.min(steps.length - 1, index)),
+    })
   }
 
   const toggleComplete = () => {
@@ -170,12 +170,15 @@ export function CookingMode({
         <div className="min-w-0">
           <Link
             href={`/recipes/${recipeId}`}
-            className="text-xs text-ink-faint underline-offset-2 hover:underline"
+            className="text-ink-faint text-xs underline-offset-2 hover:underline"
           >
             {recipeName}
           </Link>
-          <p className="tabular text-sm text-ink-muted">
-            {t('cooking.step', { current: currentIndex + 1, total: steps.length })}
+          <p className="tabular text-ink-muted text-sm">
+            {t('cooking.step', {
+              current: currentIndex + 1,
+              total: steps.length,
+            })}
           </p>
         </div>
 
@@ -192,19 +195,19 @@ export function CookingMode({
       </div>
 
       {!wakeLock.supported ? (
-        <p className="text-xs text-ink-faint">{t('cooking.keepAwakeUnsupported')}</p>
+        <p className="text-ink-faint text-xs">{t('cooking.keepAwakeUnsupported')}</p>
       ) : null}
 
       {/* Progress bar */}
       <div
-        className="h-1 w-full overflow-hidden rounded-full bg-paper-sunken"
+        className="bg-paper-sunken h-1 w-full overflow-hidden rounded-full"
         role="progressbar"
         aria-valuenow={completed.size}
         aria-valuemin={0}
         aria-valuemax={steps.length}
       >
         <div
-          className="h-full bg-basil transition-[width]"
+          className="bg-basil h-full transition-[width]"
           style={{ width: `${(completed.size / steps.length) * 100}%` }}
         />
       </div>
@@ -232,38 +235,38 @@ export function CookingMode({
             ) : null}
           </div>
 
-          <p className="font-display text-xl leading-relaxed text-ink sm:text-2xl">
+          <p className="font-display text-ink text-xl leading-relaxed sm:text-2xl">
             {step.instruction}
           </p>
 
           {step.itemNames.length > 0 ? (
-            <div className="rounded-lg bg-paper-sunken px-3 py-2">
-              <p className="text-xs font-medium tracking-wide text-ink-muted uppercase">
+            <div className="bg-paper-sunken rounded-lg px-3 py-2">
+              <p className="text-ink-muted text-xs font-medium tracking-wide uppercase">
                 {t('cooking.ingredientsForStep')}
               </p>
-              <p className="mt-0.5 text-sm text-ink">{step.itemNames.join(' · ')}</p>
+              <p className="text-ink mt-0.5 text-sm">{step.itemNames.join(' · ')}</p>
             </div>
           ) : null}
 
           {step.cues ? (
-            <div className="rounded-lg bg-basil-soft px-3 py-2">
-              <p className="text-xs font-medium tracking-wide text-basil uppercase">
+            <div className="bg-basil-soft rounded-lg px-3 py-2">
+              <p className="text-basil text-xs font-medium tracking-wide uppercase">
                 {t('cooking.cues')}
               </p>
-              <p className="mt-0.5 text-sm text-basil">{step.cues}</p>
+              <p className="text-basil mt-0.5 text-sm">{step.cues}</p>
             </div>
           ) : null}
 
           {step.troubleshooting ? (
-            <div className="rounded-lg bg-amber-soft px-3 py-2">
-              <p className="text-xs font-medium tracking-wide text-amber uppercase">
+            <div className="bg-amber-soft rounded-lg px-3 py-2">
+              <p className="text-amber text-xs font-medium tracking-wide uppercase">
                 {t('cooking.troubleshooting')}
               </p>
-              <p className="mt-0.5 text-sm text-amber">{step.troubleshooting}</p>
+              <p className="text-amber mt-0.5 text-sm">{step.troubleshooting}</p>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-2 border-t border-rule pt-3">
+          <div className="border-rule flex flex-wrap items-center gap-2 border-t pt-3">
             <Button
               variant={completed.has(step.id) ? 'primary' : 'outline'}
               onClick={toggleComplete}
@@ -287,15 +290,11 @@ export function CookingMode({
       <section>
         <div className="mb-2 flex items-end gap-2">
           <div className="w-28">
-            <label htmlFor="custom-timer" className="mb-1 block text-xs text-ink-muted">
+            <label htmlFor="custom-timer" className="text-ink-muted mb-1 block text-xs">
               {t('cooking.addTimer')}
             </label>
-            <Input
+            <NumericInput
               id="custom-timer"
-              type="number"
-              min={1}
-              max={2880}
-              inputMode="numeric"
               placeholder="15"
               value={timerMinutes}
               onChange={(event) => setTimerMinutes(event.target.value)}
@@ -341,7 +340,7 @@ export function CookingMode({
                       >
                         {formatRemaining(left)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-ink-muted">
+                      <span className="text-ink-muted min-w-0 flex-1 truncate text-sm">
                         {done ? t('cooking.timerDone') : timer.label}
                       </span>
                       {!done ? (
@@ -409,8 +408,8 @@ export function CookingMode({
         <div className="space-y-4">
           <Card className="border-basil">
             <CardBody>
-              <p className="font-medium text-basil">{t('cooking.complete')}</p>
-              <p className="mt-1 text-sm text-ink-muted">{t('cooking.offlineNote')}</p>
+              <p className="text-basil font-medium">{t('cooking.complete')}</p>
+              <p className="text-ink-muted mt-1 text-sm">{t('cooking.offlineNote')}</p>
             </CardBody>
           </Card>
 

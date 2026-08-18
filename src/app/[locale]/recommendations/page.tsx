@@ -114,6 +114,15 @@ export default async function RecommendationsPage({
             styleName: recipe?.styleName?.value ?? null,
             authenticity: result.reasons.find((r) => r.kind === 'authenticity')?.value ?? null,
             canCookNow: result.canCookNow,
+            dataComplete: result.dataComplete,
+            unknownRequired: result.unknownRequired.map((entry) => ({
+              ingredientId: entry.ingredientId,
+              name: ingredientNames[entry.ingredientId] ?? entry.ingredientId,
+            })),
+            unknownOptional: result.unknownOptional.map((entry) => ({
+              ingredientId: entry.ingredientId,
+              name: ingredientNames[entry.ingredientId] ?? entry.ingredientId,
+            })),
             coverage: Math.round(result.coverage * 100),
             reasons: result.reasons.map((reason) => ({
               kind: reason.kind,
@@ -131,8 +140,7 @@ export default async function RecommendationsPage({
                 missing.ingredientId,
                 recipe?.styleId ?? null,
               ).map((substitution) => ({
-                name:
-                  ingredientNames[substitution.toIngredientId] ?? substitution.toIngredientId,
+                name: ingredientNames[substitution.toIngredientId] ?? substitution.toIngredientId,
                 grade: substitution.qualityGrade,
                 explanation: substitution.explanationKey,
               })),

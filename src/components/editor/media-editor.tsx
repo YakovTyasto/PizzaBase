@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useRef, useState, useTransition } from 'react'
 import { uploadMediaAction } from '@/app/actions/media'
 import { MediaImage } from '@/components/media/media-image'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/primitives'
 import { ImageRejectedError, prepareImage } from '@/lib/media/compress'
@@ -36,7 +37,8 @@ export function MediaEditor({
   const inputRef = useRef<HTMLInputElement>(null)
   const [pending, startTransition] = useTransition()
   const [progress, setProgress] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
 
   const atLimit = media.length >= MAX_MEDIA_PER_RECIPE
 
@@ -152,7 +154,7 @@ export function MediaEditor({
           {pending ? <Loader2 aria-hidden className="animate-spin" /> : <ImagePlus aria-hidden />}
           {t('media.add')}
         </Button>
-        <span className="text-xs text-ink-faint">
+        <span className="text-ink-faint text-xs">
           {t('media.limit', { count: MAX_MEDIA_PER_RECIPE })}
         </span>
       </div>
@@ -160,7 +162,7 @@ export function MediaEditor({
       {progress !== null ? (
         <div>
           <div
-            className="h-1.5 w-full overflow-hidden rounded-full bg-paper-sunken"
+            className="bg-paper-sunken h-1.5 w-full overflow-hidden rounded-full"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
@@ -168,22 +170,22 @@ export function MediaEditor({
             aria-label={t('media.processing')}
           >
             <div
-              className="h-full bg-tomato transition-[width]"
+              className="bg-tomato h-full transition-[width]"
               style={{ width: `${Math.round(progress * 100)}%` }}
             />
           </div>
-          <p className="mt-1 text-xs text-ink-faint">{t('media.processing')}</p>
+          <p className="text-ink-faint mt-1 text-xs">{t('media.processing')}</p>
         </div>
       ) : null}
 
       {error ? (
-        <p role="alert" className="rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong">
-          {error}
+        <p role="alert" className="bg-tomato-soft text-tomato-strong rounded-lg px-3 py-2 text-sm">
+          {errorText(error)}
         </p>
       ) : null}
 
       {media.length === 0 ? (
-        <p className="text-sm text-ink-muted">{t('media.none')}</p>
+        <p className="text-ink-muted text-sm">{t('media.none')}</p>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {media.map((photo, index) => (

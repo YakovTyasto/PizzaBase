@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from 'react'
 import type { ImportCandidate, IngredientMatchView } from '@/app/actions/import'
 import { approveImportAction, matchImportIngredientsAction } from '@/app/actions/import'
 import { useRouter } from '@/i18n/navigation'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Select } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, SectionHeading } from '@/components/ui/primitives'
@@ -42,7 +43,8 @@ export function CandidateReview({
   const [matches, setMatches] = useState<IngredientMatchView[] | null>(null)
   const [resolved, setResolved] = useState<Record<string, string>>({})
   const [createNew, setCreateNew] = useState<string[]>([])
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
   /* Off by default: keeping the original photograph is the owner's decision,
      not a side effect of using it to read the recipe. */
   const [keepSourcePhoto, setKeepSourcePhoto] = useState(false)
@@ -127,7 +129,7 @@ export function CandidateReview({
         href={`https://www.youtube.com/watch?v=${candidate.videoId}&t=${seconds}s`}
         target="_blank"
         rel="noreferrer noopener"
-        className="ml-2 inline-flex items-center gap-1 text-xs text-tomato underline underline-offset-2"
+        className="text-tomato ml-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
       >
         <ExternalLink aria-hidden className="size-3" />
         {formatTimecode(seconds)}
@@ -140,7 +142,7 @@ export function CandidateReview({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold">{t('import.review')}</h2>
-          <p className="text-sm text-ink-muted">{t('import.reviewHint')}</p>
+          <p className="text-ink-muted text-sm">{t('import.reviewHint')}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {unknownCount > 0 ? (
@@ -159,7 +161,7 @@ export function CandidateReview({
           <Card>
             <CardBody className="space-y-2">
               {candidate.videoId ? (
-                <div className="aspect-video w-full overflow-hidden rounded-lg bg-paper-sunken">
+                <div className="bg-paper-sunken aspect-video w-full overflow-hidden rounded-lg">
                   <iframe
                     src={`https://www.youtube-nocookie.com/embed/${candidate.videoId}`}
                     title={extraction.title ?? t('import.sourcePanel')}
@@ -174,13 +176,13 @@ export function CandidateReview({
                   href={candidate.sourceUrl}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1.5 text-sm text-tomato underline underline-offset-2"
+                  className="text-tomato inline-flex items-center gap-1.5 text-sm underline underline-offset-2"
                 >
                   <ExternalLink aria-hidden className="size-3.5" />
                   {t('recipe.openSource')}
                 </a>
               ) : null}
-              <p className="text-xs text-ink-faint">{t('import.privacyNote')}</p>
+              <p className="text-ink-faint text-xs">{t('import.privacyNote')}</p>
             </CardBody>
           </Card>
         </section>
@@ -191,11 +193,11 @@ export function CandidateReview({
           <Card>
             <CardBody className="space-y-3">
               <div>
-                <p className="font-display text-lg font-semibold text-ink">
+                <p className="font-display text-ink text-lg font-semibold">
                   {extraction.title ?? t('common.unknown')}
                 </p>
                 {extraction.summary ? (
-                  <p className="mt-1 text-sm text-ink-muted">{extraction.summary}</p>
+                  <p className="text-ink-muted mt-1 text-sm">{extraction.summary}</p>
                 ) : null}
               </div>
 
@@ -217,10 +219,10 @@ export function CandidateReview({
 
           <Card>
             <CardBody>
-              <p className="mb-2 text-xs font-medium tracking-wide text-ink-muted uppercase">
+              <p className="text-ink-muted mb-2 text-xs font-medium tracking-wide uppercase">
                 {t('recipe.ingredients')}
               </p>
-              <ul className="divide-y divide-rule">
+              <ul className="divide-rule divide-y">
                 {extraction.ingredients.map((ingredient, index) => {
                   const unknown = ingredient.amount.kind === 'unknown'
                   const range = ingredient.amount.kind === 'range'
@@ -235,10 +237,10 @@ export function CandidateReview({
                       )}
                     >
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-sm text-ink">
+                        <span className="text-ink text-sm">
                           {ingredient.name}
                           {ingredient.optional ? (
-                            <span className="ml-1.5 text-xs text-ink-faint">
+                            <span className="text-ink-faint ml-1.5 text-xs">
                               ({t('common.optional')})
                             </span>
                           ) : null}
@@ -247,11 +249,11 @@ export function CandidateReview({
 
                         <span className="tabular text-sm">
                           {ingredient.amount.kind === 'exact' ? (
-                            <span className="font-medium text-ink">
+                            <span className="text-ink font-medium">
                               {ingredient.amount.value} {ingredient.amount.unit}
                             </span>
                           ) : ingredient.amount.kind === 'range' ? (
-                            <span className="font-medium text-tomato-strong">
+                            <span className="text-tomato-strong font-medium">
                               {ingredient.amount.min}–{ingredient.amount.max}{' '}
                               {ingredient.amount.unit}
                             </span>
@@ -260,7 +262,7 @@ export function CandidateReview({
                               {t(`units.${ingredient.amount.unit}`, { count: 1 })}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-amber">
+                            <span className="text-amber inline-flex items-center gap-1">
                               <CircleHelp aria-hidden className="size-3.5" />
                               {t('amount.unknown')}
                             </span>
@@ -282,14 +284,14 @@ export function CandidateReview({
                               }))
                             }
                           />
-                          <span className="text-xs text-ink-faint">
+                          <span className="text-ink-faint text-xs">
                             {'reason' in ingredient.amount ? ingredient.amount.reason : ''}
                           </span>
                         </div>
                       ) : null}
 
                       {ingredient.note ? (
-                        <p className="mt-1 text-xs text-ink-faint">{ingredient.note}</p>
+                        <p className="text-ink-faint mt-1 text-xs">{ingredient.note}</p>
                       ) : null}
                     </li>
                   )
@@ -301,17 +303,17 @@ export function CandidateReview({
           {extraction.steps.length > 0 ? (
             <Card>
               <CardBody>
-                <p className="mb-2 text-xs font-medium tracking-wide text-ink-muted uppercase">
+                <p className="text-ink-muted mb-2 text-xs font-medium tracking-wide uppercase">
                   {t('recipe.steps')}
                 </p>
                 <ol className="space-y-2">
                   {extraction.steps.map((step, index) => (
                     <li key={index} className="text-sm">
-                      <span className="mr-2 text-ink-faint">{index + 1}.</span>
+                      <span className="text-ink-faint mr-2">{index + 1}.</span>
                       <span className="text-ink">{step.instruction}</span>
                       {timeLink(step.startSeconds)}
                       {step.sensoryCues ? (
-                        <p className="mt-0.5 pl-5 text-xs text-basil">{step.sensoryCues}</p>
+                        <p className="text-basil mt-0.5 pl-5 text-xs">{step.sensoryCues}</p>
                       ) : null}
                     </li>
                   ))}
@@ -323,7 +325,7 @@ export function CandidateReview({
           {issues.length > 0 ? (
             <Card className={errors.length > 0 ? 'border-tomato' : undefined}>
               <CardBody>
-                <p className="mb-2 text-xs font-medium tracking-wide text-ink-muted uppercase">
+                <p className="text-ink-muted mb-2 text-xs font-medium tracking-wide uppercase">
                   {t('evidence.title')}
                 </p>
                 <ul className="space-y-1.5">
@@ -349,11 +351,11 @@ export function CandidateReview({
           {/* Ingredient matching: nothing is created without being asked for. */}
           <Card>
             <CardBody>
-              <p className="mb-2 text-xs font-medium tracking-wide text-ink-muted uppercase">
+              <p className="text-ink-muted mb-2 text-xs font-medium tracking-wide uppercase">
                 {t('import.matchIngredient')}
               </p>
               {matches === null ? (
-                <p className="text-sm text-ink-muted">{t('common.loading')}</p>
+                <p className="text-ink-muted text-sm">{t('common.loading')}</p>
               ) : (
                 <ul className="space-y-2">
                   {extraction.ingredients.map((ingredient) => {
@@ -364,7 +366,7 @@ export function CandidateReview({
                         key={ingredient.name}
                         className="flex flex-wrap items-center justify-between gap-2"
                       >
-                        <span className="min-w-0 text-sm text-ink">{ingredient.name}</span>
+                        <span className="text-ink min-w-0 text-sm">{ingredient.name}</span>
                         <span className="flex items-center gap-2">
                           {slug ? (
                             <Badge tone="good">{t('import.matched')}</Badge>
@@ -408,7 +410,7 @@ export function CandidateReview({
                 </ul>
               )}
               {unmatched.length > 0 ? (
-                <p className="mt-2 text-xs text-amber">
+                <p className="text-amber mt-2 text-xs">
                   {t('import.unmatched')}: {unmatched.map((i) => i.name).join(', ')}
                 </p>
               ) : null}
@@ -416,7 +418,7 @@ export function CandidateReview({
           </Card>
 
           {sourcePhoto ? (
-            <label className="flex items-start gap-2 text-sm text-ink">
+            <label className="text-ink flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={keepSourcePhoto}
@@ -425,7 +427,7 @@ export function CandidateReview({
               />
               <span>
                 {t('import.keepPhoto')}
-                <span className="block text-xs text-ink-faint">{t('import.keepPhotoHint')}</span>
+                <span className="text-ink-faint block text-xs">{t('import.keepPhotoHint')}</span>
               </span>
             </label>
           ) : null}
@@ -445,13 +447,13 @@ export function CandidateReview({
           </div>
 
           {saveError ? (
-            <p role="alert" className="text-sm text-tomato">
-              {saveError}
+            <p role="alert" className="text-tomato text-sm">
+              {errorText(saveError)}
             </p>
           ) : null}
 
           {errors.length > 0 ? (
-            <p className="text-xs text-tomato">{t('import.jobFailed')}</p>
+            <p className="text-tomato text-xs">{t('import.jobFailed')}</p>
           ) : null}
         </section>
       </div>

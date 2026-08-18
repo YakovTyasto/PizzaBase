@@ -149,7 +149,8 @@
     "resultCount": "{count, plural, one {# recipe} other {# recipes}}",
     "create": "New recipe",
     "components": "Components",
-    "usedBy": "Used by"
+    "usedBy": "Used by",
+    "filterCleared": "Some filters from the link no longer exist and were cleared."
   },
   "recipe": {
     "ingredients": "Ingredients",
@@ -193,7 +194,16 @@
     "achievedMass": "After rounding",
     "openSource": "Open the source",
     "importedOn": "Imported {date}",
-    "attribution": "Attribution"
+    "attribution": "Attribution",
+    "hydrationReset": "Restore the source hydration",
+    "hydrationEdited": "Changed by hand; the source states {source}%.",
+    "sourceBatch": "Source batch",
+    "formulaIncomplete": "No weight stated for {names}, so the percentages are incomplete.",
+    "stagePreferment": "Preferment",
+    "stageFinal": "Final dough",
+    "totalApproximate": "The total is approximate: the source leaves some weights unstated.",
+    "totalWithinTolerance": "Matches the target within kitchen rounding (±{tolerance} g).",
+    "totalDrift": "Rounding leaves the total {drift} g away from the target."
   },
   "amount": {
     "unknown": "Amount unknown",
@@ -289,7 +299,12 @@
     "noSubstitutionHint": "Better to add it to the shopping list than to swap in something that does not belong.",
     "empty": "Nothing to suggest yet.",
     "emptyHint": "Add ingredients to your pantry, or verify a recipe first.",
-    "addMissingToList": "Add what is missing to the shopping list"
+    "addMissingToList": "Add what is missing to the shopping list",
+    "dataIncomplete": "Recipe data incomplete",
+    "dataIncompleteHint": "No quantity is stated for {names}, so coverage cannot be computed.",
+    "completeRecipe": "Complete the recipe",
+    "unknownOptional": "No exact quantity, but nothing that stops you cooking: {names}.",
+    "coverageUnknown": "Coverage unknown"
   },
   "planner": {
     "title": "Fermentation planner",
@@ -307,7 +322,9 @@
     "approximate": "Approximate timing",
     "approximateHint": "This recipe has no temperature correction model. Follow the sensory cues rather than the clock.",
     "totalTime": "Total {duration}",
-    "noSteps": "This recipe has no timed steps to plan."
+    "noSteps": "This recipe has no timed steps to plan.",
+    "noFermentation": "There is nothing to schedule in this recipe",
+    "noFermentationHint": "The planner lays out fermentation and resting. This recipe is hands-on steps with no waiting."
   },
   "cooking": {
     "title": "Cooking",
@@ -433,7 +450,9 @@
     "cameraDenied": "Camera access was refused.",
     "cameraDeniedHint": "Upload a photo instead.",
     "rememberPackage": "Remember this package size",
-    "rememberPackageHint": "It will be offered when a recipe asks about yield, instead of guessing at the can."
+    "rememberPackageHint": "It will be offered when a recipe asks about yield, instead of guessing at the can.",
+    "idleBarcode": "Take a photo of the barcode; it is read in the browser.",
+    "idleOcr": "Take a photo of the label; the text is recognised on the server."
   },
   "settings": {
     "title": "Settings",
@@ -457,7 +476,11 @@
     "demoMode": "Demo mode",
     "warnings": "Things to look at",
     "recommendationRules": "Recommendation rules",
-    "startupProblems": "Configuration problems"
+    "startupProblems": "Configuration problems",
+    "storage": "Storage",
+    "storageSupabase": "Supabase — changes persist",
+    "storageDemo": "Demo, on the server’s disk",
+    "storageReadOnly": "Read-only demo"
   },
   "auth": {
     "signIn": "Sign in",
@@ -493,7 +516,11 @@
     "componentYieldUnknown": "{recipe} has no yield yet, so its ingredients cannot be broken down.",
     "componentAmountUnknown": "The amount of {recipe} is not set.",
     "providerDisabled": "{provider} is not configured.",
-    "providerDisabledHint": "Add {key} to your environment to enable it."
+    "providerDisabledHint": "Add {key} to your environment to enable it.",
+    "readOnly": "Nothing can be saved right now: this is a read-only demo.",
+    "validation": "Check the values you entered.",
+    "conflict": "The data changed elsewhere. Reload the page.",
+    "outOfRange": "Enter a number between {min} and {max}."
   },
   "offline": {
     "title": "You are offline",
@@ -611,7 +638,10 @@
     "reset": "Reset demo data",
     "resetHint": "Removes every recipe, plan and pantry item you added here and restores the bundled catalog. Local photos are removed as well.",
     "resetConfirm": "Reset demo data? Everything you created here will be removed.",
-    "resetDone": "Demo data reset."
+    "resetDone": "Demo data reset.",
+    "readOnly": "Read-only",
+    "readOnlyHint": "This deployment has no persistent storage, so changes are not saved. The catalog is fully readable.",
+    "readOnlyFix": "Connect Supabase to make changes persist."
   },
   "media": {
     "add": "Add photos",
@@ -651,7 +681,7 @@
     "empty": "No experiments yet.",
     "emptyHint": "Change a verified recipe and it keeps a version you can compare against.",
     "needTwo": "Two versions are needed",
-    "needTwoHint": "This recipe only has one version so far.",
+    "needTwoHint": "No saved version of “{recipe}” yet. Change and save the recipe to create a snapshot to compare against.",
     "slot": "Version {number}",
     "addVersion": "Add a version",
     "whatChanged": "What changed",
@@ -680,7 +710,11 @@
       "temperature": "Temperature",
       "yield": "Yield"
     },
-    "savedConfirm": "Experiment saved."
+    "savedConfirm": "Experiment saved.",
+    "howItWorks": "An experiment compares the recipe as it stands with a saved snapshot of an earlier version. A snapshot is created when you change and save a recipe.",
+    "editToSnapshot": "Open the recipe and change it",
+    "readOnlyHint": "No version can be created here: this deployment is read-only. Connect Supabase to save snapshots.",
+    "snapshotCount": "{count, plural, one {# version} other {# versions}}"
   },
   "notify": {
     "why": "Notifications tell you when a timer finished or a fermentation stage is due.",

@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, ShoppingBasket } from 'lucide-react'
+import { CheckCircle2, HelpCircle, ShoppingBasket } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
@@ -17,6 +17,12 @@ export interface RecommendationWire {
   styleName: string | null
   authenticity: string | null
   canCookNow: boolean
+  /** False when a mandatory quantity is missing, so coverage is indeterminate. */
+  dataComplete: boolean
+  /** Ingredients the recipe needs without saying how much of. */
+  unknownRequired: { ingredientId: string; name: string }[]
+  /** Uncheckable but harmless: optional unknowns and "to taste" lines. */
+  unknownOptional: { ingredientId: string; name: string }[]
   coverage: number
   reasons: { kind: string; value: string | null; minutes: number | null }[]
   missing: {
@@ -60,17 +66,14 @@ export function RecommendationList({
         />
         <span>
           <span className="text-ink">{t('recommendations.includeExperimental')}</span>
-          <span className="block text-xs text-ink-faint">
+          <span className="text-ink-faint block text-xs">
             {t('recommendations.includeExperimentalHint')}
           </span>
         </span>
       </label>
 
       {results.length === 0 ? (
-        <EmptyState
-          title={t('recommendations.empty')}
-          hint={t('recommendations.emptyHint')}
-        />
+        <EmptyState title={t('recommendations.empty')} hint={t('recommendations.emptyHint')} />
       ) : (
         <ul className="space-y-4">
           {results.map((result) => (
@@ -81,25 +84,34 @@ export function RecommendationList({
                     <div className="min-w-0">
                       <Link
                         href={`/recipes/${result.slug}`}
-                        className="font-display text-lg font-semibold text-ink underline-offset-4 hover:underline"
+                        className="font-display text-ink text-lg font-semibold underline-offset-4 hover:underline"
                       >
                         {result.name}
                       </Link>
                       <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         {result.styleName ? (
-                          <span className="text-xs text-ink-faint">{result.styleName}</span>
+                          <span className="text-ink-faint text-xs">{result.styleName}</span>
                         ) : null}
                         {result.authenticity ? (
-                          <Badge tone="outline">
-                            {t(`authenticity.${result.authenticity}`)}
-                          </Badge>
+                          <Badge tone="outline">{t(`authenticity.${result.authenticity}`)}</Badge>
                         ) : null}
                       </p>
                     </div>
+                    {/*
+                      Three distinct answers, never collapsed into two: you can
+                      cook this now, you are short some products, or the recipe
+                      does not say enough for the question to be answered. The
+                      third used to be reported as the first.
+                    */}
                     {result.canCookNow ? (
                       <Badge tone="good">
                         <CheckCircle2 aria-hidden className="size-3" />
                         {t('recommendations.canCookNow')}
+                      </Badge>
+                    ) : !result.dataComplete ? (
+                      <Badge tone="neutral">
+                        <HelpCircle aria-hidden className="size-3" />
+                        {t('recommendations.dataIncomplete')}
                       </Badge>
                     ) : (
                       <Badge tone="warn">
@@ -114,7 +126,9 @@ export function RecommendationList({
                   <ul className="flex flex-wrap gap-1.5">
                     <li>
                       <Badge tone="neutral">
-                        {t('recommendations.reasonCoverage', { percent: result.coverage })}
+                        {result.dataComplete
+                          ? t('recommendations.reasonCoverage', { percent: result.coverage })
+                          : t('recommendations.coverageUnknown')}
                       </Badge>
                     </li>
                     {result.reasons
@@ -135,9 +149,37 @@ export function RecommendationList({
                       ))}
                   </ul>
 
+                  {result.unknownRequired.length > 0 ? (
+                    <div className="border-rule border-t pt-3">
+                      <p className="text-ink-muted mb-1.5 text-xs font-medium tracking-wide uppercase">
+                        {t('recommendations.dataIncomplete')}
+                      </p>
+                      <p className="text-ink-muted text-sm">
+                        {t('recommendations.dataIncompleteHint', {
+                          names: result.unknownRequired.map((entry) => entry.name).join(', '),
+                        })}
+                      </p>
+                      <div className="mt-2">
+                        <Link href={`/recipes/${result.slug}/edit`}>
+                          <Button variant="outline" size="sm">
+                            {t('recommendations.completeRecipe')}
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {result.unknownOptional.length > 0 ? (
+                    <p className="text-ink-faint text-xs">
+                      {t('recommendations.unknownOptional', {
+                        names: result.unknownOptional.map((entry) => entry.name).join(', '),
+                      })}
+                    </p>
+                  ) : null}
+
                   {result.missing.length > 0 ? (
-                    <div className="border-t border-rule pt-3">
-                      <p className="mb-1.5 text-xs font-medium tracking-wide text-ink-muted uppercase">
+                    <div className="border-rule border-t pt-3">
+                      <p className="text-ink-muted mb-1.5 text-xs font-medium tracking-wide uppercase">
                         {t('recommendations.missing')}
                       </p>
                       <ul className="space-y-2">
@@ -145,7 +187,7 @@ export function RecommendationList({
                           <li key={missing.ingredientId} className="text-sm">
                             <span className="text-ink">{missing.name}</span>
                             {missing.short ? (
-                              <span className="ml-2 text-ink-muted">
+                              <span className="text-ink-muted ml-2">
                                 <AmountDisplay
                                   amount={deserializeAmount(missing.short)}
                                   className="text-xs"
@@ -156,16 +198,16 @@ export function RecommendationList({
                             {missing.substitutions.length > 0 ? (
                               <ul className="mt-1 space-y-0.5 pl-3">
                                 {missing.substitutions.map((substitution) => (
-                                  <li key={substitution.name} className="text-xs text-ink-muted">
+                                  <li key={substitution.name} className="text-ink-muted text-xs">
                                     → {substitution.name}
-                                    <span className="ml-1 text-ink-faint">
+                                    <span className="text-ink-faint ml-1">
                                       {substitution.explanation}
                                     </span>
                                   </li>
                                 ))}
                               </ul>
                             ) : (
-                              <p className="mt-0.5 pl-3 text-xs text-ink-faint">
+                              <p className="text-ink-faint mt-0.5 pl-3 text-xs">
                                 {t('recommendations.noSubstitutionHint')}
                               </p>
                             )}

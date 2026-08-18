@@ -128,6 +128,30 @@ export function totalWindowMinutes(steps: readonly PlannableStep[]): {
   )
 }
 
+/** Phases whose whole point is that the dough is left alone for a while. */
+const RESTING_PHASES: ReadonlySet<StepPhase> = new Set<StepPhase>([
+  'preferment',
+  'bulk',
+  'ball',
+  'cold_proof',
+  'warm_up',
+])
+
+/**
+ * Whether there is anything here worth planning backwards from.
+ *
+ * The planner schedules *waiting*: a poolish that needs eighteen hours, a cold
+ * proof that needs two days. A recipe made only of hands-on steps -- crush the
+ * tomatoes, tear the basil, salt to taste -- has nothing to schedule around,
+ * and offering a "fermentation planner" for it promises a calculation the
+ * recipe does not support.
+ */
+export function hasSchedulableTiming(steps: readonly PlannableStep[]): boolean {
+  return steps.some(
+    (step) => step.waitMaxMinutes > 0 || step.waitMinMinutes > 0 || RESTING_PHASES.has(step.phase),
+  )
+}
+
 function icsEscape(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 }

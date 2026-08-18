@@ -19,10 +19,22 @@ describe('seed integrity', () => {
     const check = (name: string, slugs: string[]) => {
       expect(new Set(slugs).size, `${name} has duplicate slugs`).toBe(slugs.length)
     }
-    check('ingredients', ingredients.map((i) => i.slug))
-    check('recipes', recipes.map((r) => r.slug))
-    check('categories', categories.map((c) => c.slug))
-    check('packages', packageOptions.map((p) => p.slug))
+    check(
+      'ingredients',
+      ingredients.map((i) => i.slug),
+    )
+    check(
+      'recipes',
+      recipes.map((r) => r.slug),
+    )
+    check(
+      'categories',
+      categories.map((c) => c.slug),
+    )
+    check(
+      'packages',
+      packageOptions.map((p) => p.slug),
+    )
   })
 
   it('references only categories that exist', () => {
@@ -121,7 +133,7 @@ describe('seed integrity', () => {
 })
 
 describe('honesty rules the seed must uphold', () => {
-  it('never labels the owner\'s own pizzas as traditional', () => {
+  it("never labels the owner's own pizzas as traditional", () => {
     const ownerPizzas = recipes.filter((r) => r.slug.endsWith('-user') && r.type === 'pizza')
     expect(ownerPizzas.length).toBeGreaterThan(0)
     for (const pizza of ownerPizzas) {
@@ -157,10 +169,7 @@ describe('honesty rules the seed must uphold', () => {
     // The ingredients really do exceed the stated yield; that is the point.
     const totalG = pesto.items
       .filter((i) => i.amount.kind === 'exact' && i.amount.unit === 'g')
-      .reduce(
-        (acc, i) => acc.plus(i.amount.kind === 'exact' ? i.amount.value : 0),
-        new Decimal(0),
-      )
+      .reduce((acc, i) => acc.plus(i.amount.kind === 'exact' ? i.amount.value : 0), new Decimal(0))
     expect(totalG.greaterThan(150)).toBe(true)
   })
 
@@ -200,7 +209,7 @@ describe('honesty rules the seed must uphold', () => {
     expect(sauce.status).toBe('needs_review')
   })
 
-  it('does not add sugar, garlic or oregano to the owner\'s tomato sauce', () => {
+  it("does not add sugar, garlic or oregano to the owner's tomato sauce", () => {
     const sauce = recipes.find((r) => r.slug === 'tomato-sauce-user')!
     const slugs = sauce.items.map((i) => i.ingredientSlug)
     expect(slugs).toEqual([
@@ -228,11 +237,11 @@ describe('seeded dough formulas', () => {
         { ingredientId: 'yeast', role: 'yeast', grams: gramsOf('yeast') },
       ],
     })
-    expect(percentages.hydrationPct.toDecimalPlaces(2).toString()).toBe('59.62')
-    expect(percentages.saltPct.toDecimalPlaces(2).toString()).toBe('2.5')
+    expect(percentages.hydrationPct.nominal.toDecimalPlaces(2).toString()).toBe('59.62')
+    expect(percentages.saltPct.nominal.toDecimalPlaces(2).toString()).toBe('2.5')
   })
 
-  it("reproduces the Roman tonda hydration", () => {
+  it('reproduces the Roman tonda hydration', () => {
     const dough = recipes.find((r) => r.slug === 'sisofo-roman-thin-crust')!
     const gramsOf = (key: string) => {
       const amount = dough.items.find((i) => i.key === key)!.amount
@@ -245,7 +254,7 @@ describe('seeded dough formulas', () => {
         { ingredientId: 'water', role: 'water', grams: gramsOf('water') },
       ],
     })
-    expect(percentages.hydrationPct.toDecimalPlaces(2).toString()).toBe('55.26')
+    expect(percentages.hydrationPct.nominal.toDecimalPlaces(2).toString()).toBe('55.26')
   })
 })
 

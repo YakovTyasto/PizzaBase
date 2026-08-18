@@ -39,7 +39,11 @@ export async function GET() {
     {
       status: errors.length > 0 ? 'misconfigured' : 'ok',
       version: appConfig.version,
-      mode: report.demoMode ? 'demo' : 'supabase',
+      // "demo" keeps its data on the server's own disk; "demo-readonly" cannot
+      // keep anything at all. An operator needs to be able to tell a working
+      // deployment from a browsable-but-frozen one at a glance.
+      mode: report.storageMode,
+      writable: report.writable,
       // Booleans only. Whether a key exists is operational; its value is not.
       integrations: {
         supabase: report.supabase,

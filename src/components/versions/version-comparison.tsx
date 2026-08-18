@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { makeVersionPrimaryAction } from '@/app/actions/versions'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Select } from '@/components/ui/primitives'
 import { usePathname, useRouter } from '@/i18n/navigation'
@@ -43,7 +44,8 @@ export function VersionComparison({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
 
   const select = (id: string) => {
     const next = new URLSearchParams(searchParams.toString())
@@ -57,7 +59,7 @@ export function VersionComparison({
     startTransition(async () => {
       const result = await makeVersionPrimaryAction(id)
       if (result.ok) router.push(`/recipes/${slug}`)
-      else setError(result.error ?? t('errors.generic'))
+      else setError(result.error)
     })
   }
 
@@ -71,7 +73,7 @@ export function VersionComparison({
       <Card>
         <CardBody className="space-y-3">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+            <span className="text-ink-muted mb-1.5 block text-xs font-medium">
               {t('versions.compareWith')}
             </span>
             <Select
@@ -89,7 +91,7 @@ export function VersionComparison({
             </Select>
           </label>
 
-          <p className="flex items-center gap-2 text-xs text-ink-faint">
+          <p className="text-ink-faint flex items-center gap-2 text-xs">
             <span>{t('versions.before')}</span>
             <ArrowRight aria-hidden className="size-3" />
             <span>{t('versions.after')}</span>
@@ -102,14 +104,18 @@ export function VersionComparison({
               disabled={pending}
               onClick={() => restore(selectedId)}
             >
-              {pending ? <Loader2 aria-hidden className="animate-spin" /> : <RotateCcw aria-hidden />}
+              {pending ? (
+                <Loader2 aria-hidden className="animate-spin" />
+              ) : (
+                <RotateCcw aria-hidden />
+              )}
               {t('versions.restore')}
             </Button>
           ) : null}
 
           {error ? (
-            <p role="alert" className="text-sm text-tomato">
-              {error}
+            <p role="alert" className="text-tomato text-sm">
+              {errorText(error)}
             </p>
           ) : null}
         </CardBody>
@@ -120,7 +126,7 @@ export function VersionComparison({
       {doughBefore || doughAfter ? (
         <Card>
           <CardBody>
-            <h2 className="mb-2 text-sm font-semibold tracking-wide text-ink-muted uppercase">
+            <h2 className="text-ink-muted mb-2 text-sm font-semibold tracking-wide uppercase">
               {t('recipe.bakersPercentages')}
             </h2>
             <ul className="space-y-1">
@@ -147,7 +153,7 @@ export function VersionComparison({
 
       {grouped.length === 0 ? (
         <Card>
-          <CardBody className="flex items-center gap-2 py-4 text-sm text-basil">
+          <CardBody className="text-basil flex items-center gap-2 py-4 text-sm">
             <Check aria-hidden className="size-4" />
             {t('versions.noDifferences')}
           </CardBody>
@@ -155,7 +161,7 @@ export function VersionComparison({
       ) : (
         grouped.map((section) => (
           <section key={section.group}>
-            <h2 className="mb-2 text-sm font-semibold tracking-wide text-ink-muted uppercase">
+            <h2 className="text-ink-muted mb-2 text-sm font-semibold tracking-wide uppercase">
               {section.group === 'ingredients'
                 ? t('recipe.ingredients')
                 : section.group === 'steps'
@@ -168,11 +174,11 @@ export function VersionComparison({
             </h2>
             <Card>
               <CardBody className="p-0 sm:p-0">
-                <ul className="divide-y divide-rule">
+                <ul className="divide-rule divide-y">
                   {section.entries.map((entry, index) => (
                     <li key={index} className="px-4 py-2.5">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-sm text-ink">{entry.label}</span>
+                        <span className="text-ink text-sm">{entry.label}</span>
                         <Badge
                           tone={
                             entry.kind === 'added'
@@ -187,8 +193,8 @@ export function VersionComparison({
                       </div>
                       <p className="tabular mt-0.5 text-sm">
                         <span className="text-ink-faint line-through">{entry.before ?? '—'}</span>
-                        <ArrowRight aria-hidden className="mx-2 inline size-3 text-ink-faint" />
-                        <span className="font-medium text-ink">{entry.after ?? '—'}</span>
+                        <ArrowRight aria-hidden className="text-ink-faint mx-2 inline size-3" />
+                        <span className="text-ink font-medium">{entry.after ?? '—'}</span>
                       </p>
                     </li>
                   ))}

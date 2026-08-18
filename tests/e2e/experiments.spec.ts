@@ -99,3 +99,72 @@ test.describe('comparing two versions as an experiment', () => {
     await expect(page.getByText('Нужны хотя бы две версии')).toBeVisible()
   })
 })
+
+/**
+ * The path a seeded recipe takes to become comparable.
+ *
+ * Before the fix, no seeded recipe could ever produce a snapshot -- versioning
+ * was reserved for `verified` recipes and nothing in the catalog is verified --
+ * so the Experiments screen listed every recipe and told the owner the same
+ * thing about all of them: two versions needed.
+ */
+test.describe('creating the first snapshot of a seeded recipe', () => {
+  test('explains what an experiment needs and links to the editor', async ({ page }) => {
+    await page.goto('/ru/experiments')
+
+    await expect(page.getByText(/сравнивает рецепт сейчас с сохранённым снимком/)).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Открыть рецепт и изменить его' })).toBeVisible()
+  })
+
+  test('edit, compare, choose a winner, reload', async ({ page }) => {
+    const slug = 'sisofo-forgotten-neapolitan'
+
+    // One change to a needs_review recipe is enough to snapshot what it was.
+    await page.goto(`/ru/recipes/${slug}/edit`)
+    await page.getByRole('tab', { name: 'Ингредиенты' }).click()
+    await page.getByLabel('Количество').first().fill('540')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page).toHaveURL(new RegExp(`/ru/recipes/${slug}$`), { timeout: 20_000 })
+
+    // The version now exists and is offered for comparison.
+    await page.goto(`/ru/recipes/${slug}/versions`)
+    await expect(page.getByRole('option', { name: /Версия 1/ })).toBeAttached()
+
+    await page.goto(`/ru/experiments?recipe=${slug}`)
+    await expect(page.getByText('Что изменилось')).toBeVisible()
+    // More flour at the same water is a lower hydration, and the comparison
+    // names the parameter that moved rather than the row that was edited.
+    await expect(page.locator('table').first()).toContainText('Гидратация')
+
+    // Record a winner, then confirm it outlives a reload.
+    await page.getByLabel('Название эксперимента').fill('Больше муки')
+    await page.getByLabel('Победившая версия').selectOption({ index: 1 })
+    await page.getByRole('button', { name: 'Сохранить эксперимент' }).click()
+    await expect(page.getByText('Эксперимент сохранён')).toBeVisible({ timeout: 20_000 })
+
+    await page.reload()
+    await expect(page.getByText('Больше муки').first()).toBeVisible()
+    await expect(page.getByText('Есть победитель').first()).toBeVisible()
+  })
+
+  test('saving the same recipe twice does not create a second identical version', async ({
+    page,
+  }) => {
+    const slug = 'sisofo-crispiest-teglia'
+
+    await page.goto(`/ru/recipes/${slug}/edit`)
+    await page.getByRole('tab', { name: 'Ингредиенты' }).click()
+    await page.getByLabel('Количество').first().fill('1010')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page).toHaveURL(new RegExp(`/ru/recipes/${slug}$`), { timeout: 20_000 })
+
+    // Re-save with nothing changed.
+    await page.goto(`/ru/recipes/${slug}/edit`)
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page).toHaveURL(new RegExp(`/ru/recipes/${slug}$`), { timeout: 20_000 })
+
+    await page.goto(`/ru/recipes/${slug}/versions`)
+    await expect(page.getByRole('option', { name: /Версия 1/ })).toBeAttached()
+    await expect(page.getByRole('option', { name: /Версия 2/ })).toHaveCount(0)
+  })
+})

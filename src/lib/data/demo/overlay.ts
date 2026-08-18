@@ -21,8 +21,7 @@ import type { SeedRecipe } from '@/lib/seed/types'
  * cannot leave a half-written overlay behind.
  */
 
-const DATA_DIR =
-  process.env.IMPASTO_DEMO_DIR ?? path.join(process.cwd(), '.impasto-demo')
+const DATA_DIR = process.env.IMPASTO_DEMO_DIR ?? path.join(process.cwd(), '.impasto-demo')
 
 const amountSchema = z.union([
   z.object({ kind: z.literal('exact'), value: z.string(), unit: z.string() }),
@@ -193,14 +192,48 @@ export async function readOverlay(sessionId: string): Promise<DemoOverlay> {
   }
 }
 
+/** Transient locks, rather than a genuine refusal to write. */
+const RETRYABLE = new Set(['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY'])
+
+function isRetryable(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    RETRYABLE.has(String((error as { code: unknown }).code))
+  )
+}
+
 export async function writeOverlay(sessionId: string, overlay: DemoOverlay): Promise<void> {
   await mkdir(DATA_DIR, { recursive: true })
   const target = fileFor(sessionId)
-  const temp = `${target}.${process.pid}.tmp`
+  const temp = `${target}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`
 
   // Write-then-rename: a reader never sees a partially written overlay.
   await writeFile(temp, JSON.stringify(overlay), 'utf8')
-  await rename(temp, target)
+
+  /*
+   * The rename is retried, briefly, because on Windows it is not reliably
+   * atomic from the caller's point of view: a file scanner, a backup agent or
+   * a folder sync (OneDrive, Dropbox) can hold a handle open for a few
+   * milliseconds and the call comes back EPERM. That is a transient lock, not
+   * a permissions problem -- and treating it as a hard failure lost a recipe
+   * the owner had just written, on their own machine, for no reason they could
+   * see or fix. Four attempts over ~150 ms; anything still failing after that
+   * is a real error and is raised.
+   */
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rename(temp, target)
+      return
+    } catch (error) {
+      if (attempt >= 3 || !isRetryable(error)) {
+        await unlink(temp).catch(() => {})
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20 * 2 ** attempt))
+    }
+  }
 }
 
 export async function updateOverlay(

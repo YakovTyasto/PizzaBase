@@ -1,5 +1,8 @@
 import { Decimal } from 'decimal.js'
+import { type Amount, isNumeric } from './amount'
+import type { MassRange } from './dough'
 import type { DomainRecipe, Shape } from './model'
+import { areConvertible, convert, measureOf } from './units'
 
 /**
  * How toppings follow a change of pizza size.
@@ -80,10 +83,67 @@ export function baseSizeOf(recipe: DomainRecipe): SizeSpec | null {
 }
 
 /**
+ * What one unscaled batch of a recipe weighs, read from its own amounts.
+ *
+ * This is the denominator every exact dough scale factor is built on, and it
+ * exists precisely so that a missing `baseYield` cannot be mistaken for "the
+ * entire source batch makes one pizza". A stated range keeps both bounds; a
+ * qualitative or unstated mandatory amount leaves the batch mass incomplete
+ * rather than inventing grams for it.
+ */
+export interface SourceBatchMass extends MassRange {
+  /** False when a mandatory amount was qualitative, unknown or unweighable. */
+  complete: boolean
+  /** Item ids whose mass could not be established. */
+  unknownItemIds: string[]
+}
+
+/** Converts an amount to grams, or null when it is not a weighable mass. */
+function gramsOf(amount: Amount): { min: Decimal; max: Decimal } | null {
+  if (!isNumeric(amount)) return null
+  if (measureOf(amount.unit) !== 'mass' || !areConvertible(amount.unit, 'g')) return null
+  return amount.kind === 'exact'
+    ? { min: convert(amount.value, amount.unit, 'g'), max: convert(amount.value, amount.unit, 'g') }
+    : { min: convert(amount.min, amount.unit, 'g'), max: convert(amount.max, amount.unit, 'g') }
+}
+
+export function sourceBatchMass(recipe: DomainRecipe): SourceBatchMass {
+  let min = new Decimal(0)
+  let nominal = new Decimal(0)
+  let max = new Decimal(0)
+  const unknownItemIds: string[] = []
+
+  for (const item of recipe.items) {
+    const grams = gramsOf(item.amount)
+    if (!grams) {
+      // An optional garnish left unstated does not make the batch mass a
+      // guess; a mandatory line does.
+      if (!item.optional) unknownItemIds.push(item.id)
+      continue
+    }
+    min = min.plus(grams.min)
+    max = max.plus(grams.max)
+    nominal = nominal.plus(grams.min.plus(grams.max).dividedBy(2))
+  }
+
+  return {
+    min,
+    nominal,
+    max,
+    complete: unknownItemIds.length === 0 && nominal.greaterThan(0),
+    unknownItemIds,
+  }
+}
+
+/**
  * Dough scales by target mass, independently of the topping factor: the user
- * picks how many balls and how heavy each one is. When no ball weight is given
- * we fall back to the recipe's own base ball weight, and if the recipe does not
- * state one either, dough simply follows the pizza count.
+ * picks how many balls and how heavy each one is.
+ *
+ * The factor is `target mass / source batch mass`, both in grams, which is
+ * exact whenever the recipe states its ingredient weights -- no base yield
+ * required. `baseYield` and `baseBallWeightG` only supply defaults: the ball
+ * weight to use when the caller does not name one, and the count fallback for
+ * a recipe whose ingredient weights cannot be summed at all.
  */
 export function doughFactor(input: {
   baseRecipe: DomainRecipe
@@ -101,6 +161,13 @@ export function doughFactor(input: {
       ? baseBall
       : new Decimal(input.targetBallWeightG)
 
+  const batch = sourceBatchMass(input.baseRecipe)
+  if (batch.nominal.greaterThan(0) && targetBall && targetBall.greaterThan(0)) {
+    return new Decimal(input.targetBallCount).times(targetBall).dividedBy(batch.nominal)
+  }
+
+  // Nothing weighable to scale from: fall back to counting pizzas, and to the
+  // ratio of ball weights when the recipe states one.
   const countFactor = new Decimal(input.targetBallCount).dividedBy(basePizzas)
   if (!baseBall || !targetBall || baseBall.isZero()) return countFactor
   return countFactor.times(targetBall.dividedBy(baseBall))

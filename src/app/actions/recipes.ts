@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getRepository } from '@/lib/data'
 import { RepositoryError } from '@/lib/data/demo/repository'
+import type { ActionError } from '@/lib/data/errors'
+import { toActionError } from '@/lib/data/failure'
 import {
   type DraftValidationIssue,
   type RecipeDraft,
@@ -22,7 +24,7 @@ import type { LOCALE_KEYS } from '@/lib/data/recipe-draft'
 
 export type SaveResult =
   | { ok: true; slug: string; created: boolean; versionCreated: boolean }
-  | { ok: false; error: string; issues?: DraftValidationIssue[]; cycle?: string[] }
+  | { ok: false; error: ActionError; issues?: DraftValidationIssue[]; cycle?: string[] }
 
 /**
  * Saves a draft.
@@ -41,7 +43,7 @@ export async function saveRecipeAction(
   if (!parsed.success) {
     return {
       ok: false,
-      error: 'The recipe could not be saved',
+      error: { code: 'validation' },
       issues: parsed.error.issues.map((issue) => ({
         path: issue.path.join('.'),
         message: issue.message,
@@ -51,7 +53,7 @@ export async function saveRecipeAction(
 
   const issues = validateDraft(parsed.data)
   if (issues.length > 0) {
-    return { ok: false, error: 'Please fix the highlighted fields', issues }
+    return { ok: false, error: { code: 'validation' }, issues }
   }
 
   const key = typeof idempotencyKey === 'string' ? idempotencyKey.slice(0, 200) : null
@@ -83,44 +85,40 @@ export async function saveRecipeAction(
   } catch (error) {
     if (error instanceof RepositoryError) {
       if (error.code === 'cycle') {
-        return {
-          ok: false,
-          error: 'A recipe cannot contain itself',
-          cycle: error.details as string[],
-        }
+        return { ok: false, error: { code: 'cycle' }, cycle: error.details as string[] }
       }
       if (error.code === 'validation') {
         return {
           ok: false,
-          error: 'Please fix the highlighted fields',
+          error: { code: 'validation' },
           issues: error.details as DraftValidationIssue[],
         }
       }
-      return { ok: false, error: error.message }
+      return { ok: false, error: toActionError(error, 'saveRecipe') }
     }
     // A database constraint firing here (the cycle trigger, a missing
-    // ingredient) means nothing was written, so the message can be plain.
-    const message = error instanceof Error ? error.message : 'The recipe could not be saved'
-    return {
-      ok: false,
-      error: /cycle/i.test(message) ? 'A recipe cannot contain itself' : message,
+    // ingredient) means nothing was written. The trigger's own message is the
+    // only thing that distinguishes a cycle from any other constraint, so it is
+    // matched here and then discarded rather than shown.
+    if (error instanceof Error && /cycle/i.test(error.message)) {
+      return { ok: false, error: { code: 'cycle' } }
     }
+    return { ok: false, error: toActionError(error, 'saveRecipe') }
   }
 }
 
-export async function deleteRecipeAction(slug: string): Promise<{ ok: boolean; error?: string }> {
+export async function deleteRecipeAction(
+  slug: string,
+): Promise<{ ok: true } | { ok: false; error: ActionError }> {
   const parsed = z.string().min(1).max(200).safeParse(slug)
-  if (!parsed.success) return { ok: false, error: 'Invalid recipe' }
+  if (!parsed.success) return { ok: false, error: { code: 'validation' } }
 
   try {
     await getRepository().deleteRecipe(parsed.data)
     revalidatePath('/', 'layout')
     return { ok: true }
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'The recipe could not be deleted',
-    }
+    return { ok: false, error: toActionError(error, 'deleteRecipe') }
   }
 }
 
@@ -138,17 +136,17 @@ const createIngredientSchema = z.object({
 
 export async function createIngredientAction(
   input: unknown,
-): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; slug: string } | { ok: false; error: ActionError }> {
   const parsed = createIngredientSchema.safeParse(input)
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid ingredient' }
+    return { ok: false, error: { code: 'validation' } }
   }
   if (
     !parsed.data.names.ru.trim() &&
     !parsed.data.names.en.trim() &&
     !parsed.data.names.fr.trim()
   ) {
-    return { ok: false, error: 'An ingredient needs a name' }
+    return { ok: false, error: { code: 'validation' } }
   }
 
   try {
@@ -162,10 +160,7 @@ export async function createIngredientAction(
     revalidatePath('/', 'layout')
     return { ok: true, slug }
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'The ingredient could not be created',
-    }
+    return { ok: false, error: toActionError(error, 'createIngredient') }
   }
 }
 
@@ -202,21 +197,21 @@ const resolutionSchema = z.object({
 export async function resolveQuestionAction(input: unknown): Promise<SaveResult> {
   const parsed = resolutionSchema.safeParse(input)
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid answer' }
+    return { ok: false, error: { code: 'validation' } }
   }
   const answer = parsed.data
 
   const repository = getRepository()
   const draft = await repository.getRecipeDraft(answer.recipeSlug)
-  if (!draft) return { ok: false, error: 'That recipe no longer exists' }
+  if (!draft) return { ok: false, error: { code: 'not_found' } }
 
   const next: RecipeDraft = structuredClone(draft)
 
   if (answer.itemKey && answer.amount) {
     const item = next.items.find((candidate) => candidate.key === answer.itemKey)
-    if (!item) return { ok: false, error: 'That ingredient is no longer in the recipe' }
+    if (!item) return { ok: false, error: { code: 'not_found' } }
     const amount = toDraftAmount(answer.amount)
-    if (!amount) return { ok: false, error: 'That amount is not valid' }
+    if (!amount) return { ok: false, error: { code: 'validation' } }
     item.amount = amount
   }
 

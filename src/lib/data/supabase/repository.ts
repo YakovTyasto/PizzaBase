@@ -76,6 +76,8 @@ function unitOrNull(value: string | null): Unit | null {
 
 export class SupabaseRepository implements Repository {
   readonly kind = 'supabase' as const
+  /** Supabase is the persistent backend; writes are always attempted. */
+  readonly writable = true
 
   async listRecipes(locale: Locale, filter: RecipeFilter = {}): Promise<RecipeSummary[]> {
     const supabase = await createClient()
@@ -152,7 +154,8 @@ export class SupabaseRepository implements Repository {
     const source = r.recipe_sources?.[0]
 
     return {
-      cover: rowsToMedia(r.recipe_media ?? [], locale).find((m) => m.isCover) ??
+      cover:
+        rowsToMedia(r.recipe_media ?? [], locale).find((m) => m.isCover) ??
         rowsToMedia(r.recipe_media ?? [], locale)[0] ??
         null,
       id: r.id,
@@ -171,7 +174,11 @@ export class SupabaseRepository implements Repository {
             locale,
           )
         : null,
-      name: resolveText(collectTranslations(r.recipe_translations, 'name'), locale, r.origin_locale),
+      name: resolveText(
+        collectTranslations(r.recipe_translations, 'name'),
+        locale,
+        r.origin_locale,
+      ),
       summary: (() => {
         const translations = collectTranslations(r.recipe_translations, 'summary')
         const resolved = resolveText(translations, locale, r.origin_locale)
@@ -429,9 +436,8 @@ export class SupabaseRepository implements Repository {
         locale,
       ),
       openQuestions:
-        evidence.filter(
-          (e) => e.reviewState === 'needs_review' || e.reviewState === 'conflict',
-        ).length + items.filter((i) => i.amount.kind === 'unknown').length,
+        evidence.filter((e) => e.reviewState === 'needs_review' || e.reviewState === 'conflict')
+          .length + items.filter((i) => i.amount.kind === 'unknown').length,
       hasConflict: evidence.some((e) => e.reviewState === 'conflict'),
       baseYield: detail.base_yield,
       yieldUnit: unitOrNull(detail.yield_unit),
@@ -456,18 +462,20 @@ export class SupabaseRepository implements Repository {
   async getGraph(): Promise<RecipeGraph> {
     const supabase = await createClient()
 
-    const [{ data: recipeRows, error: recipeError }, { data: ingredientRows, error: ingredientError }] =
-      await Promise.all([
-        supabase.from('recipes').select(
-          `id, slug, type, status, base_yield, yield_unit, base_diameter_mm, base_shape,
+    const [
+      { data: recipeRows, error: recipeError },
+      { data: ingredientRows, error: ingredientError },
+    ] = await Promise.all([
+      supabase.from('recipes').select(
+        `id, slug, type, status, base_yield, yield_unit, base_diameter_mm, base_shape,
            base_tray_width_mm, base_tray_height_mm, base_ball_weight_g,
            recipe_items (id, ingredient_id, component_recipe_id, amount, amount_max,
                          unit, optional, item_group, sort_order)`,
-        ),
-        supabase
-          .from('ingredients')
-          .select('id, slug, measure, base_unit, density_g_per_ml, category_id'),
-      ])
+      ),
+      supabase
+        .from('ingredients')
+        .select('id, slug, measure, base_unit, density_g_per_ml, category_id'),
+    ])
 
     if (recipeError) throw recipeError
     if (ingredientError) throw ingredientError
@@ -549,14 +557,12 @@ export class SupabaseRepository implements Repository {
 
   async listIngredients(locale: Locale): Promise<IngredientView[]> {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('ingredients')
-      .select(
-        `id, slug, measure, base_unit, density_g_per_ml, allergens, parent_id, category_id,
+    const { data, error } = await supabase.from('ingredients').select(
+      `id, slug, measure, base_unit, density_g_per_ml, allergens, parent_id, category_id,
          ingredient_translations (locale, name),
          ingredient_aliases (alias),
          ingredient_categories (id, ingredient_category_translations (locale, name))`,
-      )
+    )
     if (error) throw error
 
     return (data ?? [])
@@ -584,7 +590,10 @@ export class SupabaseRepository implements Repository {
           categoryId: i.category_id ?? '',
           categoryName: i.ingredient_categories
             ? resolveText(
-                collectTranslations(i.ingredient_categories.ingredient_category_translations, 'name'),
+                collectTranslations(
+                  i.ingredient_categories.ingredient_category_translations,
+                  'name',
+                ),
                 locale,
               )
             : { value: '', fallbackFrom: null },
@@ -623,12 +632,10 @@ export class SupabaseRepository implements Repository {
 
   async listPackageOptions(): Promise<PackageOption[]> {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('ingredient_package_options')
-      .select(
-        `id, ingredient_id, net_quantity, unit, preferred,
+    const { data, error } = await supabase.from('ingredient_package_options').select(
+      `id, ingredient_id, net_quantity, unit, preferred,
          ingredient_package_option_translations (locale, label)`,
-      )
+    )
     if (error) throw error
 
     return (data ?? []).map((raw) => {
@@ -652,12 +659,10 @@ export class SupabaseRepository implements Repository {
 
   async listSubstitutions(): Promise<Substitution[]> {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('ingredient_substitutions')
-      .select(
-        `id, from_ingredient_id, to_ingredient_id, style_id, quality_grade, approved,
+    const { data, error } = await supabase.from('ingredient_substitutions').select(
+      `id, from_ingredient_id, to_ingredient_id, style_id, quality_grade, approved,
          ingredient_substitution_translations (locale, explanation)`,
-      )
+    )
     if (error) throw error
 
     return (data ?? []).map((raw) => {
@@ -691,7 +696,10 @@ export class SupabaseRepository implements Repository {
         id: string
         style_translations?: { locale: Locale; name: string }[]
       }
-      return { id: s.id, name: resolveText(collectTranslations(s.style_translations, 'name'), locale) }
+      return {
+        id: s.id,
+        name: resolveText(collectTranslations(s.style_translations, 'name'), locale),
+      }
     })
   }
 
@@ -715,13 +723,11 @@ export class SupabaseRepository implements Repository {
 
   async getPantry(locale: Locale): Promise<PantryItemView[]> {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('pantry_items')
-      .select(
-        `id, ingredient_id, quantity, unit, opened, purchased_on, expires_on, location,
+    const { data, error } = await supabase.from('pantry_items').select(
+      `id, ingredient_id, quantity, unit, opened, purchased_on, expires_on, location,
          ingredients (ingredient_translations (locale, name)),
          recognized_products (display_name)`,
-      )
+    )
     if (error) throw error
 
     return (data ?? []).map((raw) => {
@@ -1054,7 +1060,9 @@ export class SupabaseRepository implements Repository {
     const supabase = await createClient()
     const { data } = await supabase
       .from('profiles')
-      .select('preferred_locale, temperature_unit, default_diameter_mm, default_ball_weight_g, default_oven_profile_id')
+      .select(
+        'preferred_locale, temperature_unit, default_diameter_mm, default_ball_weight_g, default_oven_profile_id',
+      )
       .maybeSingle()
 
     const { data: settings } = await supabase
@@ -1381,9 +1389,11 @@ export class SupabaseRepository implements Repository {
     if (translationError) throw new Error(translationError.message)
 
     if (input.aliases?.length) {
-      await supabase.from('ingredient_aliases').insert(
-        input.aliases.map((alias) => ({ ingredient_id: ingredientId, locale: null, alias })),
-      )
+      await supabase
+        .from('ingredient_aliases')
+        .insert(
+          input.aliases.map((alias) => ({ ingredient_id: ingredientId, locale: null, alias })),
+        )
     }
 
     return slug
@@ -1751,12 +1761,15 @@ function supabaseRowToDraft(
         itemKeys: (step.recipe_step_items ?? []).flatMap((link) =>
           link.recipe_items?.item_key ? [link.recipe_items.item_key] : [],
         ),
-        instructions: byLocale(step.recipe_step_translations, 'instruction') as Record<Locale, string>,
+        instructions: byLocale(step.recipe_step_translations, 'instruction') as Record<
+          Locale,
+          string
+        >,
         cues: byLocale(step.recipe_step_translations, 'sensory_cues') as Record<Locale, string>,
-        troubleshooting: byLocale(
-          step.recipe_step_translations,
-          'troubleshooting',
-        ) as Record<Locale, string>,
+        troubleshooting: byLocale(step.recipe_step_translations, 'troubleshooting') as Record<
+          Locale,
+          string
+        >,
       })),
     source: detail.source,
     evidence: detail.evidence.map((entry) => ({
@@ -1772,8 +1785,7 @@ function supabaseRowToDraft(
     // out again rather than silently dropped on the next save.
     media: detail.media.map((photo) => ({
       id: photo.id,
-      storagePath:
-        (photo as typeof photo & { storagePath?: string | null }).storagePath ?? null,
+      storagePath: (photo as typeof photo & { storagePath?: string | null }).storagePath ?? null,
       url: null,
       alt: { ru: photo.alt ?? '', en: photo.alt ?? '', fr: photo.alt ?? '' },
       isCover: photo.isCover,
@@ -1843,7 +1855,10 @@ function snapshotToDraft(snapshot: unknown): RecipeDraft | null {
   return {
     slug: text('slug'),
     type: (recipe.type as RecipeDraft['type']) ?? 'pizza',
-    status: recipe.status === 'archived' ? 'draft' : ((recipe.status as RecipeDraft['status']) ?? 'draft'),
+    status:
+      recipe.status === 'archived'
+        ? 'draft'
+        : ((recipe.status as RecipeDraft['status']) ?? 'draft'),
     authenticity: (recipe.authenticity as RecipeDraft['authenticity']) ?? 'user_verified',
     styleSlug: null,
     ovenProfileSlug: null,
@@ -1898,7 +1913,6 @@ function snapshotToDraft(snapshot: unknown): RecipeDraft | null {
   }
 }
 
-
 // ---------------------------------------------------------------------------
 // Media
 // ---------------------------------------------------------------------------
@@ -1926,7 +1940,10 @@ interface MediaRow {
  * exactly the photos a screen is about to render -- not for every row a
  * listing query happened to return.
  */
-function rowsToMedia(rows: readonly MediaRow[], locale: Locale): (MediaView & {
+function rowsToMedia(
+  rows: readonly MediaRow[],
+  locale: Locale,
+): (MediaView & {
   storagePath: string | null
 })[] {
   return [...rows]

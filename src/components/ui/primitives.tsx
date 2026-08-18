@@ -6,7 +6,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return (
     <div
       className={cn(
-        'rounded-[var(--radius-card)] border border-rule bg-paper-raised shadow-[var(--shadow-card)]',
+        'border-rule bg-paper-raised rounded-[var(--radius-card)] border shadow-[var(--shadow-card)]',
         className,
       )}
       {...props}
@@ -19,7 +19,7 @@ export function CardBody({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn('text-lg font-semibold text-ink', className)} {...props} />
+  return <h3 className={cn('text-ink text-lg font-semibold', className)} {...props} />
 }
 
 const badgeVariants = cva(
@@ -39,8 +39,7 @@ const badgeVariants = cva(
 )
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLSpanElement>,
-    VariantProps<typeof badgeVariants> {}
+  extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}
 
 export function Badge({ className, tone, ...props }: BadgeProps) {
   return <span className={cn(badgeVariants({ tone }), className)} {...props} />
@@ -50,7 +49,7 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
   return (
     <input
       className={cn(
-        'h-11 w-full rounded-lg border border-rule bg-paper-raised px-3 text-sm text-ink',
+        'border-rule bg-paper-raised text-ink h-11 w-full rounded-lg border px-3 text-sm',
         'placeholder:text-ink-faint',
         className,
       )}
@@ -59,11 +58,43 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
   )
 }
 
+/**
+ * A number field with no spinner and no spinbutton role.
+ *
+ * `type="number"` brings step arrows the owner does not want, a scroll wheel
+ * that silently changes values, and a browser-enforced locale for the decimal
+ * separator. Hiding the arrows in CSS would leave the control announcing itself
+ * as a spinbutton to a screen reader while offering no way to step it, so the
+ * type changes instead: a text field with the right `inputMode` gets the numeric
+ * keypad on a phone and keyboard entry everywhere, with validation staying where
+ * it always belonged -- in the handler and on the server.
+ *
+ * `decimal` picks the keypad: `numeric` for whole numbers, `decimal` for
+ * anything that can carry a fraction.
+ */
+export function NumericInput({
+  decimal = false,
+  className,
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> & { decimal?: boolean }) {
+  return (
+    <Input
+      {...props}
+      type="text"
+      inputMode={decimal ? 'decimal' : 'numeric'}
+      autoComplete="off"
+      autoCorrect="off"
+      spellCheck={false}
+      className={className}
+    />
+  )
+}
+
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       className={cn(
-        'h-11 w-full rounded-lg border border-rule bg-paper-raised px-3 text-sm text-ink',
+        'border-rule bg-paper-raised text-ink h-11 w-full rounded-lg border px-3 text-sm',
         className,
       )}
       {...props}
@@ -78,7 +109,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        'w-full rounded-lg border border-rule bg-paper-raised p-3 text-sm text-ink',
+        'border-rule bg-paper-raised text-ink w-full rounded-lg border p-3 text-sm',
         'placeholder:text-ink-faint',
         className,
       )}
@@ -90,7 +121,7 @@ export function Textarea({
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
-      className={cn('mb-1.5 block text-xs font-medium tracking-wide text-ink-muted', className)}
+      className={cn('text-ink-muted mb-1.5 block text-xs font-medium tracking-wide', className)}
       {...props}
     />
   )
@@ -108,7 +139,7 @@ export function SectionHeading({
 }) {
   return (
     <div className={cn('mb-3 flex items-baseline justify-between gap-3', className)}>
-      <h2 className="text-sm font-semibold tracking-wide text-ink-muted uppercase">{children}</h2>
+      <h2 className="text-ink-muted text-sm font-semibold tracking-wide uppercase">{children}</h2>
       {action}
     </div>
   )
@@ -130,17 +161,17 @@ export function EmptyState({
   icon?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col items-center rounded-[var(--radius-card)] border border-dashed border-rule px-6 py-10 text-center">
-      {icon ? <div className="mb-3 text-ink-faint">{icon}</div> : null}
-      <p className="font-medium text-ink">{title}</p>
-      {hint ? <p className="mt-1 max-w-sm text-sm text-ink-muted">{hint}</p> : null}
+    <div className="border-rule flex flex-col items-center rounded-[var(--radius-card)] border border-dashed px-6 py-10 text-center">
+      {icon ? <div className="text-ink-faint mb-3">{icon}</div> : null}
+      <p className="text-ink font-medium">{title}</p>
+      {hint ? <p className="text-ink-muted mt-1 max-w-sm text-sm">{hint}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   )
 }
 
 export function Divider({ className }: { className?: string }) {
-  return <hr className={cn('border-0 border-t border-rule', className)} />
+  return <hr className={cn('border-rule border-0 border-t', className)} />
 }
 
 /** Key/value row used in recipe metadata and settings. */
@@ -155,8 +186,8 @@ export function DataRow({
 }) {
   return (
     <div className={cn('flex items-baseline justify-between gap-4 py-1.5', className)}>
-      <dt className="text-sm text-ink-muted">{label}</dt>
-      <dd className="tabular text-sm font-medium text-ink">{children}</dd>
+      <dt className="text-ink-muted text-sm">{label}</dt>
+      <dd className="tabular text-ink text-sm font-medium">{children}</dd>
     </div>
   )
 }

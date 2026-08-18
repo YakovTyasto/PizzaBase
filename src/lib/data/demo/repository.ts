@@ -12,10 +12,12 @@ import {
   buildAliasIndex,
   searchKey,
 } from '@/domain'
+import { isDemoWritable } from '@/lib/config/env'
 import { seedCatalog } from '@/lib/seed'
 import { seedAmountToDomain } from '@/lib/seed/to-domain'
 import type { SeedIngredient, SeedRecipe } from '@/lib/seed/types'
 import { draftToStored, findComponentCycle, storedToDraft } from '../draft-convert'
+import { ReadOnlyStoreError } from '../errors'
 import { optionalText, resolveText } from '../localize'
 import { type RecipeDraft, uniqueSlug, validateDraft } from '../recipe-draft'
 import type {
@@ -65,7 +67,7 @@ const ovenBySlug = new Map(seedCatalog.ovenProfiles.map((o) => [o.slug, o]))
 export class RepositoryError extends Error {
   constructor(
     message: string,
-    readonly code: 'not_found' | 'validation' | 'cycle' | 'conflict',
+    readonly code: 'not_found' | 'validation' | 'cycle' | 'conflict' | 'readonly',
     readonly details?: unknown,
   ) {
     super(message)
@@ -80,6 +82,37 @@ function ingredientAliases(ingredient: SeedIngredient): string[] {
   ].filter((value): value is string => Boolean(value))
 }
 
+/**
+ * Serialises a value with its object keys in a fixed order.
+ *
+ * Plain `JSON.stringify` preserves insertion order, so two objects holding the
+ * same data can produce different text -- which would read as "the recipe
+ * changed" purely because the seed catalog and the draft converter happen to
+ * build their fields in a different order.
+ */
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => item !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+  return `{${entries.join(',')}}`
+}
+
+/**
+ * Whether two stored recipes hold the same content.
+ *
+ * The only thing that can tell "the owner pressed Save twice" apart from "the
+ * owner changed something" -- and therefore the only thing standing between an
+ * honest version history and one full of identical entries.
+ */
+function sameRecipe(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a === null || b === null || a === undefined || b === undefined) return false
+  return canonical(a) === canonical(b)
+}
+
 function openQuestionsOf(recipe: SeedRecipe): number {
   const flagged = (recipe.evidence ?? []).filter(
     (e) => e.reviewState === 'needs_review' || e.reviewState === 'conflict',
@@ -91,16 +124,35 @@ function openQuestionsOf(recipe: SeedRecipe): number {
 export class DemoRepository implements Repository {
   readonly kind = 'demo' as const
 
+  /**
+   * Whether this process can persist anything.
+   *
+   * Resolved once at construction from the runtime, not per call, so every
+   * screen and every action agree about it -- and so a mutation control can be
+   * disabled before the user presses it rather than after.
+   */
+  readonly writable: boolean
+
+  constructor(writable: boolean = isDemoWritable()) {
+    this.writable = writable
+  }
+
   /** Reads are session-optional: without one the seed is served untouched. */
   private async overlay(): Promise<DemoOverlay> {
     const sessionId = await readSessionId()
     return sessionId ? readOverlay(sessionId) : EMPTY_OVERLAY
   }
 
-  /** Writes always need a session, minting one on first use. */
-  private async mutate(
-    apply: (overlay: DemoOverlay) => DemoOverlay,
-  ): Promise<DemoOverlay> {
+  /**
+   * Writes always need a session, minting one on first use.
+   *
+   * The read-only check comes first and costs nothing: on a platform with no
+   * writable filesystem there is no point minting a session, no point reading
+   * the overlay, and above all no point discovering the problem from a failed
+   * `mkdir` whose message names a path inside the deployment bundle.
+   */
+  private async mutate(apply: (overlay: DemoOverlay) => DemoOverlay): Promise<DemoOverlay> {
+    if (!this.writable) throw new ReadOnlyStoreError()
     const sessionId = await ensureSessionId()
     return updateOverlay(sessionId, apply)
   }
@@ -109,10 +161,7 @@ export class DemoRepository implements Repository {
     return new Map(effectiveIngredients(overlay).map((i) => [i.slug, i]))
   }
 
-  private toSummary(
-    recipe: SeedRecipe,
-    locale: Locale,
-  ): RecipeSummary {
+  private toSummary(recipe: SeedRecipe, locale: Locale): RecipeSummary {
     const style = recipe.styleSlug ? styleBySlug.get(recipe.styleSlug) : null
     const oven = recipe.ovenProfileSlug ? ovenBySlug.get(recipe.ovenProfileSlug) : null
 
@@ -609,8 +658,7 @@ export class DemoRepository implements Repository {
           settings.defaultOvenProfileId === undefined
             ? overlay.settings.defaultOvenProfileId
             : settings.defaultOvenProfileId,
-        includeExperimental:
-          settings.includeExperimental ?? overlay.settings.includeExperimental,
+        includeExperimental: settings.includeExperimental ?? overlay.settings.includeExperimental,
       },
     }))
   }
@@ -628,15 +676,18 @@ export class DemoRepository implements Repository {
     const taken = new Set(effectiveRecipes(overlay).map((r) => r.slug))
     if (draft.slug) taken.delete(draft.slug)
 
-    const slug = existing?.slug ?? draft.slug ?? uniqueSlug(
-      draft.names[draft.originLocale] || draft.names.en || draft.names.ru,
-      taken,
-    )
+    const slug =
+      existing?.slug ??
+      draft.slug ??
+      uniqueSlug(draft.names[draft.originLocale] || draft.names.en || draft.names.ru, taken)
 
     // Cycle check across the *effective* catalog, so a component added here
     // cannot close a loop through recipes that already exist.
     const itemsBySlug = new Map(
-      effectiveRecipes(overlay).map((r) => [r.slug, r.items.map((i) => ({ componentSlug: i.componentSlug }))]),
+      effectiveRecipes(overlay).map((r) => [
+        r.slug,
+        r.items.map((i) => ({ componentSlug: i.componentSlug })),
+      ]),
     )
     const cycle = findComponentCycle(draft, slug, itemsBySlug)
     if (cycle) {
@@ -645,15 +696,33 @@ export class DemoRepository implements Repository {
 
     const stored = draftToStored(draft, slug)
 
-    // A verified recipe that changes gets an immutable snapshot of what it was,
-    // so the previous version is never destroyed.
-    const shouldVersion =
-      Boolean(existing) && (draft.createVersion || existing?.status === 'verified')
+    /**
+     * An edit that changes something gets an immutable snapshot of what the
+     * recipe was, so the previous version is never destroyed.
+     *
+     * Versioning used to be reserved for `verified` recipes, which is why the
+     * Experiments screen could only ever say "two versions needed": nothing in
+     * the seeded catalog is verified, so no edit ever produced a snapshot and
+     * there was never anything to compare. Any real change now produces one --
+     * and a save that changes nothing produces none, which is what keeps a
+     * double submit from filling the history with identical entries.
+     */
+    // `draft.createVersion` deliberately does not force one: an explicit
+    // request to version an unchanged recipe would store a second copy of what
+    // is already there, which is the duplicate this is meant to prevent.
+    const shouldVersion = Boolean(existing) && !sameRecipe(existing, stored)
+
+    let versionCreated = false
 
     await this.mutate((current) => {
       const versions = [...current.versions]
-      if (shouldVersion && existing) {
-        const previous = versions.filter((v) => v.recipeId === slug)
+      const previous = versions.filter((v) => v.recipeId === slug)
+      // Never store the same state twice in a row: an explicit "save a version"
+      // on an unchanged recipe would otherwise duplicate the latest snapshot.
+      const duplicate =
+        previous.length > 0 && sameRecipe(previous[previous.length - 1]?.snapshot, existing)
+
+      if (shouldVersion && existing && !duplicate) {
         versions.push({
           id: `version-${randomUUID().slice(0, 12)}`,
           recipeId: slug,
@@ -663,6 +732,7 @@ export class DemoRepository implements Repository {
           note: draft.versionNote,
           snapshot: existing,
         })
+        versionCreated = true
       }
 
       return {
@@ -673,7 +743,7 @@ export class DemoRepository implements Repository {
       }
     })
 
-    return { slug, created: !existing, versionCreated: shouldVersion }
+    return { slug, created: !existing, versionCreated }
   }
 
   async deleteRecipe(slug: string): Promise<void> {
@@ -771,17 +841,17 @@ export class DemoRepository implements Repository {
       for (const item of recipe.items) {
         if (item.amount.kind !== 'unknown') continue
         const subject = item.ingredientSlug
-          ? (ingredients.get(item.ingredientSlug)
-              ? resolveText(ingredients.get(item.ingredientSlug)!.names, locale)
-              : { value: item.ingredientSlug, fallbackFrom: null })
+          ? ingredients.get(item.ingredientSlug)
+            ? resolveText(ingredients.get(item.ingredientSlug)!.names, locale)
+            : { value: item.ingredientSlug, fallbackFrom: null }
           : item.componentSlug
-            ? (recipeBySlug.get(item.componentSlug)
-                ? resolveText(
-                    recipeBySlug.get(item.componentSlug)!.names,
-                    locale,
-                    recipeBySlug.get(item.componentSlug)!.originLocale,
-                  )
-                : { value: item.componentSlug, fallbackFrom: null })
+            ? recipeBySlug.get(item.componentSlug)
+              ? resolveText(
+                  recipeBySlug.get(item.componentSlug)!.names,
+                  locale,
+                  recipeBySlug.get(item.componentSlug)!.originLocale,
+                )
+              : { value: item.componentSlug, fallbackFrom: null }
             : { value: item.key, fallbackFrom: null }
 
         questions.push({
@@ -1017,6 +1087,9 @@ export class DemoRepository implements Repository {
   // --- Demo housekeeping ---------------------------------------------------
 
   async resetDemoData(): Promise<void> {
+    // Nothing was ever stored in a read-only demo, so "reset" has nothing to
+    // do -- but saying so beats a button that silently pretends to work.
+    if (!this.writable) throw new ReadOnlyStoreError()
     const sessionId = await readSessionId()
     if (sessionId) await resetOverlay(sessionId)
   }

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import { useMemo, useState, useTransition } from 'react'
 import { resolveQuestionAction } from '@/app/actions/recipes'
 import { AmountEditor } from '@/components/editor/amount-editor'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Label, Select } from '@/components/ui/primitives'
 import { Link } from '@/i18n/navigation'
@@ -57,9 +58,7 @@ export function NeedsReviewList({
       {grouped.map(([slug, group]) => (
         <section key={slug}>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-display text-lg font-semibold">
-              {group[0]?.recipeName ?? slug}
-            </h2>
+            <h2 className="font-display text-lg font-semibold">{group[0]?.recipeName ?? slug}</h2>
             <Link href={`/recipes/${slug}/edit`}>
               <Button variant="ghost" size="sm">
                 <Pencil aria-hidden />
@@ -92,7 +91,8 @@ function QuestionCard({
   const locale = useLocale()
   const [pending, startTransition] = useTransition()
   const [done, setDone] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
 
   const [amount, setAmount] = useState<DraftAmount>(() => {
     if (!question.currentAmount || question.currentAmount.kind === 'unknown') {
@@ -139,7 +139,7 @@ function QuestionCard({
   if (done) {
     return (
       <Card className="border-basil">
-        <CardBody className="flex items-center gap-2 py-3 text-sm text-basil">
+        <CardBody className="text-basil flex items-center gap-2 py-3 text-sm">
           <Check aria-hidden className="size-4" />
           {t('review.resolved')}
         </CardBody>
@@ -151,7 +151,7 @@ function QuestionCard({
     <Card>
       <CardBody className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <p className="font-medium text-ink">{title}</p>
+          <p className="text-ink font-medium">{title}</p>
           <Badge tone={question.reviewState === 'conflict' ? 'accent' : 'warn'}>
             {question.reviewState === 'conflict' ? (
               <AlertTriangle aria-hidden className="size-3" />
@@ -162,7 +162,7 @@ function QuestionCard({
           </Badge>
         </div>
 
-        {question.note ? <p className="text-sm text-ink-muted">{question.note}</p> : null}
+        {question.note ? <p className="text-ink-muted text-sm">{question.note}</p> : null}
 
         {question.kind === 'amount' ? (
           <AmountEditor idPrefix={`q-${question.id}`} value={amount} onChange={setAmount} />
@@ -191,7 +191,7 @@ function QuestionCard({
                     </option>
                   ))}
                 </Select>
-                <p className="mt-1 text-xs text-ink-faint">{t('review.packageHint')}</p>
+                <p className="text-ink-faint mt-1 text-xs">{t('review.packageHint')}</p>
               </div>
             ) : null}
 
@@ -224,7 +224,7 @@ function QuestionCard({
         ) : null}
 
         {question.kind === 'ingredient' || question.kind === 'other' ? (
-          <p className="text-sm text-ink-muted">
+          <p className="text-ink-muted text-sm">
             <Link
               href={`/recipes/${question.recipeSlug}/edit`}
               className="text-tomato underline underline-offset-2"
@@ -235,8 +235,8 @@ function QuestionCard({
         ) : null}
 
         {error ? (
-          <p role="alert" className="text-sm text-tomato">
-            {error}
+          <p role="alert" className="text-tomato text-sm">
+            {errorText(error)}
           </p>
         ) : null}
 
@@ -248,9 +248,7 @@ function QuestionCard({
               disabled={
                 pending ||
                 (question.kind === 'yield' && !yieldValue) ||
-                (question.kind === 'amount' &&
-                  amount.kind === 'exact' &&
-                  !amount.value)
+                (question.kind === 'amount' && amount.kind === 'exact' && !amount.value)
               }
             >
               {pending ? <Loader2 aria-hidden className="animate-spin" /> : <Check aria-hidden />}

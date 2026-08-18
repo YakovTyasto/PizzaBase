@@ -127,20 +127,27 @@ export default async function ExperimentsPage({
     <div className="space-y-5">
       <div>
         <h1 className="font-display text-2xl font-semibold">{t('experiments.title')}</h1>
-        <p className="mt-1 text-sm text-ink-muted">{t('experiments.hint')}</p>
+        <p className="text-ink-muted mt-1 text-sm">{t('experiments.hint')}</p>
+        <p className="text-ink-faint mt-1 text-sm">{t('experiments.howItWorks')}</p>
       </div>
 
       <Card>
         <CardBody>
           <form method="get" className="flex flex-wrap items-end gap-2">
             <label className="min-w-48 flex-1">
-              <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+              <span className="text-ink-muted mb-1.5 block text-xs font-medium">
                 {t('recipes.title')}
               </span>
+              {/* The snapshot count is on the option itself, so the picker
+                  shows which recipes have history before one is chosen. */}
               <Select name="recipe" defaultValue={active.recipe.slug}>
                 {comparable.map((entry) => (
                   <option key={entry.recipe.slug} value={entry.recipe.slug}>
-                    {entry.recipe.name.value}
+                    {entry.versions.length > 0
+                      ? `${entry.recipe.name.value} · ${t('experiments.snapshotCount', {
+                          count: entry.versions.length,
+                        })}`
+                      : entry.recipe.name.value}
                   </option>
                 ))}
               </Select>
@@ -153,10 +160,24 @@ export default async function ExperimentsPage({
       </Card>
 
       {rows.length === 0 ? (
+        // Nothing to compare yet. Saying *why* -- and offering the one action
+        // that changes it -- beats repeating "two versions needed" on a screen
+        // that lists every recipe and gives the same answer for all of them.
         <EmptyState
           icon={<FlaskConical className="size-6" />}
           title={t('experiments.needTwo')}
-          hint={t('experiments.needTwoHint')}
+          hint={
+            repository.writable
+              ? t('experiments.needTwoHint', { recipe: active.recipe.name.value })
+              : t('experiments.readOnlyHint')
+          }
+          action={
+            repository.writable ? (
+              <Link href={`/recipes/${active.recipe.slug}/edit`}>
+                <Button>{t('experiments.editToSnapshot')}</Button>
+              </Link>
+            ) : null
+          }
         />
       ) : (
         <ExperimentWorkbench
@@ -180,7 +201,7 @@ export default async function ExperimentsPage({
 
       {saved.length > 0 ? (
         <section>
-          <h2 className="mb-2 text-sm font-semibold tracking-wide text-ink-muted uppercase">
+          <h2 className="text-ink-muted mb-2 text-sm font-semibold tracking-wide uppercase">
             {t('experiments.saved')}
           </h2>
           <ul className="space-y-2">
@@ -191,11 +212,11 @@ export default async function ExperimentsPage({
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <Link
                         href={`/experiments?recipe=${experiment.recipeSlug}&versions=${experiment.versionIds.join(',')}`}
-                        className="font-medium text-ink underline-offset-4 hover:underline"
+                        className="text-ink font-medium underline-offset-4 hover:underline"
                       >
                         {experiment.title || experiment.recipeName.value}
                       </Link>
-                      <span className="text-xs text-ink-faint">
+                      <span className="text-ink-faint text-xs">
                         {formatDateTime(new Date(experiment.createdAt), locale as Locale)}
                       </span>
                     </div>
@@ -203,7 +224,7 @@ export default async function ExperimentsPage({
                       <Badge tone="good">{t('experiments.hasWinner')}</Badge>
                     ) : null}
                     {experiment.conclusion ? (
-                      <p className="text-sm text-ink-muted">{experiment.conclusion}</p>
+                      <p className="text-ink-muted text-sm">{experiment.conclusion}</p>
                     ) : null}
                   </CardBody>
                 </Card>

@@ -5,12 +5,14 @@ import { useTranslations } from 'next-intl'
 import { useState, useTransition } from 'react'
 import { savePlanAction } from '@/app/actions/plan'
 import { Button } from '@/components/ui/button'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import {
   Card,
   CardBody,
   EmptyState,
   Input,
   Label,
+  NumericInput,
   Select,
 } from '@/components/ui/primitives'
 import { Link } from '@/i18n/navigation'
@@ -24,19 +26,34 @@ export function PlanBuilder({
   plan,
   recipes,
   recipeNames,
+  writable,
 }: {
   plan: MealPlanView
   recipes: RecipeSummary[]
   recipeNames: Record<string, string>
+  /** False on a read-only deployment: every control is disabled up front. */
+  writable: boolean
 }) {
   const t = useTranslations()
   const [entries, setEntries] = useState<PlanEntry[]>(plan.entries)
   const [serveAt, setServeAt] = useState(plan.serveAt?.slice(0, 16) ?? '')
   const [selected, setSelected] = useState(recipes[0]?.id ?? '')
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
 
+  /**
+   * Applies a change, then withdraws it if the server refused.
+   *
+   * The optimistic update is what makes the screen feel immediate, but it is a
+   * *prediction*, and a prediction that turns out wrong has to be taken back.
+   * Leaving the pizza on screen after the write failed is what made a read-only
+   * deployment look like it was saving: the row appeared, and only a reload
+   * revealed it had never existed.
+   */
   const persist = (next: PlanEntry[], nextServeAt = serveAt) => {
+    const previousEntries = entries
+    const previousServeAt = serveAt
     setEntries(next)
     setError(null)
     startTransition(async () => {
@@ -46,19 +63,21 @@ export function PlanBuilder({
         notes: plan.notes,
         entries: next,
       })
-      if (!result.ok) setError(result.error)
+      if (!result.ok) {
+        setEntries(previousEntries)
+        setServeAt(previousServeAt)
+        setError(result.error)
+      }
     })
   }
 
   const addEntry = () => {
-    if (!selected) return
+    if (!selected || !writable) return
     const existing = entries.find((entry) => entry.recipeId === selected)
     if (existing) {
       persist(
         entries.map((entry) =>
-          entry.recipeId === selected
-            ? { ...entry, count: Math.min(99, entry.count + 1) }
-            : entry,
+          entry.recipeId === selected ? { ...entry, count: Math.min(99, entry.count + 1) } : entry,
         ),
       )
       return
@@ -109,7 +128,11 @@ export function PlanBuilder({
               </Select>
             </div>
             <div className="flex items-end">
-              <Button onClick={addEntry} disabled={!selected || pending} className="w-full sm:w-auto">
+              <Button
+                onClick={addEntry}
+                disabled={!selected || pending || !writable}
+                className="w-full sm:w-auto"
+              >
                 <Plus aria-hidden />
                 {t('common.add')}
               </Button>
@@ -118,10 +141,13 @@ export function PlanBuilder({
 
           <div>
             <Label htmlFor="plan-serve">{t('plan.serveAt')}</Label>
+            {/* datetime-local keeps its native picker. It is not a spinbutton,
+                and typing a date by hand would be strictly worse. */}
             <Input
               id="plan-serve"
               type="datetime-local"
               value={serveAt}
+              disabled={!writable}
               onChange={(event) => {
                 setServeAt(event.target.value)
                 persist(entries, event.target.value)
@@ -131,9 +157,15 @@ export function PlanBuilder({
         </CardBody>
       </Card>
 
+      {!writable ? (
+        <p className="bg-amber-soft text-amber rounded-lg px-3 py-2 text-sm">
+          {t('demo.readOnlyHint')}
+        </p>
+      ) : null}
+
       {error ? (
-        <p role="alert" className="text-sm text-tomato">
-          {error}
+        <p role="alert" className="text-tomato text-sm">
+          {errorText(error)}
         </p>
       ) : null}
 
@@ -147,13 +179,14 @@ export function PlanBuilder({
                 <Card>
                   <CardBody className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <h3 className="font-medium text-ink">
+                      <h3 className="text-ink font-medium">
                         {recipeNames[entry.recipeId] ?? entry.recipeId}
                       </h3>
                       <Button
                         variant="ghost"
                         size="sm"
                         aria-label={t('plan.remove')}
+                        disabled={!writable || pending}
                         onClick={() =>
                           persist(entries.filter((candidate) => candidate.id !== entry.id))
                         }
@@ -165,43 +198,37 @@ export function PlanBuilder({
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div>
                         <Label htmlFor={`count-${entry.id}`}>{t('plan.count')}</Label>
-                        <Input
+                        <NumericInput
                           id={`count-${entry.id}`}
-                          type="number"
-                          min={1}
-                          max={99}
-                          inputMode="numeric"
                           value={entry.count}
-                          onChange={(event) =>
-                            update(entry.id, {
-                              count: Math.min(99, Math.max(1, Number(event.target.value) || 1)),
-                            })
-                          }
+                          disabled={!writable}
+                          onChange={(event) => {
+                            // Out-of-range input is ignored rather than
+                            // rewritten, so a partly typed number survives.
+                            const parsed = Number(event.target.value.trim())
+                            if (!Number.isInteger(parsed) || parsed < 1 || parsed > 99) return
+                            update(entry.id, { count: parsed })
+                          }}
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`diameter-${entry.id}`}>
-                          {t('recipe.diameter')} (mm)
-                        </Label>
-                        <Input
+                        <Label htmlFor={`diameter-${entry.id}`}>{t('recipe.diameter')} (mm)</Label>
+                        <NumericInput
                           id={`diameter-${entry.id}`}
-                          type="number"
-                          min={100}
-                          max={800}
-                          step={10}
-                          inputMode="numeric"
                           value={entry.diameterMm ?? 300}
-                          onChange={(event) =>
-                            update(entry.id, {
-                              diameterMm: Math.max(100, Number(event.target.value) || 300),
-                            })
-                          }
+                          disabled={!writable}
+                          onChange={(event) => {
+                            const parsed = Number(event.target.value.trim())
+                            if (!Number.isInteger(parsed) || parsed < 100 || parsed > 800) return
+                            update(entry.id, { diameterMm: parsed })
+                          }}
                         />
                       </div>
                       <div>
                         <Label htmlFor={`mode-${entry.id}`}>{t('recipe.scale')}</Label>
                         <Select
                           id={`mode-${entry.id}`}
+                          disabled={!writable}
                           value={entry.scaleMode}
                           onChange={(event) =>
                             update(entry.id, {
@@ -221,7 +248,7 @@ export function PlanBuilder({
           </ul>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-ink-muted">
+            <p className="text-ink-muted text-sm">
               {t('plan.totalPizzas', { count: totalPizzas })}
             </p>
             <Link href="/shopping">

@@ -2,7 +2,7 @@ import { CalendarPlus, ChefHat, ExternalLink, History, Pencil, Timer } from 'luc
 import type { Metadata } from 'next'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
-import type { DomainIngredient, Locale } from '@/domain'
+import { type DomainIngredient, type Locale, hasSchedulableTiming } from '@/domain'
 import { EvidencePanel } from '@/components/recipe/evidence-panel'
 import { RecipeScaler } from '@/components/recipe/recipe-scaler'
 import { StepList } from '@/components/recipe/step-list'
@@ -75,6 +75,9 @@ export default async function RecipeDetailPage({
 
   const totalMinutes = (recipe.activeMinutes ?? 0) + (recipe.passiveMinutes ?? 0)
 
+  // The planner link is offered only where the planner has something to do.
+  const canPlan = hasSchedulableTiming(recipe.steps)
+
   return (
     <article className="space-y-6">
       <header className="space-y-3">
@@ -90,9 +93,7 @@ export default async function RecipeDetailPage({
           <FallbackBadge text={recipe.name} />
         </h1>
 
-        {recipe.summary ? (
-          <p className="max-w-2xl text-ink-muted">{recipe.summary.value}</p>
-        ) : null}
+        {recipe.summary ? <p className="text-ink-muted max-w-2xl">{recipe.summary.value}</p> : null}
 
         {media.length > 0 ? (
           <div className="max-w-2xl">
@@ -113,7 +114,7 @@ export default async function RecipeDetailPage({
               {t('recipe.addToPlan')}
             </Button>
           </Link>
-          {recipe.steps.length > 0 ? (
+          {canPlan ? (
             <Link href={`/recipes/${recipe.slug}/planner`}>
               <Button variant="outline">
                 <Timer aria-hidden />
@@ -179,7 +180,7 @@ export default async function RecipeDetailPage({
                           href={recipe.source.url}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="inline-flex items-center gap-1.5 text-sm text-tomato underline underline-offset-2"
+                          className="text-tomato inline-flex items-center gap-1.5 text-sm underline underline-offset-2"
                         >
                           <ExternalLink aria-hidden className="size-3.5" />
                           {recipe.source.title ?? t('recipe.openSource')}
@@ -190,13 +191,13 @@ export default async function RecipeDetailPage({
                 ) : null}
               </dl>
               {recipe.notes ? (
-                <p className="mt-3 border-t border-rule pt-3 text-sm text-ink-muted">
+                <p className="border-rule text-ink-muted mt-3 border-t pt-3 text-sm">
                   {recipe.notes.value}
                 </p>
               ) : null}
               {recipe.usedBy.length > 0 ? (
-                <div className="mt-3 border-t border-rule pt-3">
-                  <p className="mb-1.5 text-xs text-ink-faint">{t('recipes.usedBy')}</p>
+                <div className="border-rule mt-3 border-t pt-3">
+                  <p className="text-ink-faint mb-1.5 text-xs">{t('recipes.usedBy')}</p>
                   <ul className="flex flex-wrap gap-1.5">
                     {recipe.usedBy.map((parent) => (
                       <li key={parent.id}>

@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getRepository } from '@/lib/data'
+import type { ActionError } from '@/lib/data/errors'
+import { toActionError } from '@/lib/data/failure'
 
 /**
  * Saves how a cook actually went.
@@ -42,12 +44,12 @@ const resultSchema = z.object({
     .default([]),
 })
 
-export type SaveCookResult = { ok: true; id: string } | { ok: false; error: string }
+export type SaveCookResult = { ok: true; id: string } | { ok: false; error: ActionError }
 
 export async function saveCookResultAction(input: unknown): Promise<SaveCookResult> {
   const parsed = resultSchema.safeParse(input)
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'That result is not valid' }
+    return { ok: false, error: { code: 'validation' } }
   }
 
   const result = parsed.data
@@ -83,9 +85,6 @@ export async function saveCookResultAction(input: unknown): Promise<SaveCookResu
     revalidatePath('/', 'layout')
     return { ok: true, id: result.id }
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'The result could not be saved',
-    }
+    return { ok: false, error: toActionError(error, 'saveCookResult') }
   }
 }

@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, Mail } from 'lucide-r
 import { useTranslations } from 'next-intl'
 import { useState, useTransition } from 'react'
 import { enterDemoAction, signInAction } from '@/app/actions/auth'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, Input, Label } from '@/components/ui/primitives'
 import { useRouter } from '@/i18n/navigation'
@@ -30,7 +31,8 @@ export function LoginForm({
 
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
   const [notAllowed, setNotAllowed] = useState(false)
 
   const submit = () => {
@@ -61,7 +63,7 @@ export function LoginForm({
         <Card className="border-tomato">
           <CardBody className="space-y-3">
             <h2 className="font-display text-lg font-semibold">{t('auth.demoTitle')}</h2>
-            <p className="text-sm text-ink-muted">{t('auth.demoHint')}</p>
+            <p className="text-ink-muted text-sm">{t('auth.demoHint')}</p>
             <Button onClick={enterDemo} disabled={pending}>
               {pending ? <Loader2 aria-hidden className="animate-spin" /> : null}
               {t('auth.demoEnter')}
@@ -76,14 +78,14 @@ export function LoginForm({
           <h2 className="font-display text-lg font-semibold">{t('auth.signIn')}</h2>
 
           {demoMode ? (
-            <p className="flex items-start gap-2 rounded-lg bg-paper-sunken px-3 py-2 text-sm text-ink-muted">
+            <p className="bg-paper-sunken text-ink-muted flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
               <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
               {t('errors.providerDisabledHint', { key: 'NEXT_PUBLIC_SUPABASE_URL' })}
             </p>
           ) : null}
 
           {!demoMode && !allowlistConfigured ? (
-            <p className="flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber">
+            <p className="bg-amber-soft text-amber flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
               <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
               {t('settings.allowlistEmpty')}
             </p>
@@ -106,22 +108,18 @@ export function LoginForm({
           </div>
 
           <Button onClick={submit} disabled={demoMode || pending || !email}>
-            {pending ? (
-              <Loader2 aria-hidden className="animate-spin" />
-            ) : (
-              <Mail aria-hidden />
-            )}
+            {pending ? <Loader2 aria-hidden className="animate-spin" /> : <Mail aria-hidden />}
             {pending ? t('auth.sending') : t('auth.sendLink')}
           </Button>
 
           {redirectTo !== '/' ? (
-            <p className="text-xs text-ink-faint">{t('auth.returnTo', { path: redirectTo })}</p>
+            <p className="text-ink-faint text-xs">{t('auth.returnTo', { path: redirectTo })}</p>
           ) : null}
 
           {sent ? (
             <p
               role="status"
-              className="flex items-start gap-2 rounded-lg bg-basil-soft px-3 py-2 text-sm text-basil"
+              className="bg-basil-soft text-basil flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
             >
               <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0" />
               {t('auth.linkSent')}
@@ -131,10 +129,10 @@ export function LoginForm({
           {error ? (
             <p
               role="alert"
-              className="flex items-start gap-2 rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong"
+              className="bg-tomato-soft text-tomato-strong flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
             >
               <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {notAllowed ? t('auth.notAllowed') : error}
+              {notAllowed ? t('auth.notAllowed') : errorText(error)}
             </p>
           ) : null}
         </CardBody>

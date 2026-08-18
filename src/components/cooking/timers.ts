@@ -73,9 +73,18 @@ export function clearProgress(recipeId: string): void {
   }
 }
 
+/**
+ * Time left on a timer, never more than it was set for.
+ *
+ * The clamp is what keeps a 20-minute timer from opening at 20:01. `now` is a
+ * once-a-second snapshot, so a timer created between two ticks is compared
+ * against a clock reading up to a second in the past -- and `endsAt - now` then
+ * exceeds the configured duration, which the ceiling in `formatRemaining`
+ * rounds up into a visibly wrong figure.
+ */
 export function remainingMs(timer: CookTimer, now: number): number {
-  if (timer.remainingMs !== null) return timer.remainingMs
-  return Math.max(0, timer.endsAt - now)
+  const left = timer.remainingMs !== null ? timer.remainingMs : timer.endsAt - now
+  return Math.min(timer.totalMs, Math.max(0, left))
 }
 
 export function formatRemaining(ms: number): string {
@@ -84,9 +93,7 @@ export function formatRemaining(ms: number): string {
   const minutes = Math.floor((total % 3600) / 60)
   const seconds = total % 60
   const pad = (value: number) => String(value).padStart(2, '0')
-  return hours > 0
-    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
-    : `${minutes}:${pad(seconds)}`
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`
 }
 
 /** Ticks once a second purely to re-render; the truth is the wall clock. */

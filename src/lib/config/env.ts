@@ -33,6 +33,9 @@ const publicSchema = z.object({
 
 const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
+  IMPASTO_DEMO_DIR: optionalString,
+  IMPASTO_DEMO_READONLY: optionalString,
+  VERCEL: optionalString,
   ALLOWED_EMAILS: optionalString,
   OPENAI_API_KEY: optionalString,
   OPENAI_BASE_URL: optionalUrl,
@@ -90,6 +93,47 @@ export function isDemoMode(): boolean {
   return !publicEnv.NEXT_PUBLIC_SUPABASE_URL || !publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
 }
 
+/**
+ * Where the app's data actually lives.
+ *
+ * `demo` and `demo-readonly` are the same seed catalog; the difference is
+ * whether the process can keep anything the owner changes.
+ *
+ * On a serverless platform the deployment bundle is read-only, so the demo
+ * overlay -- a JSON file under the project directory -- cannot be written at
+ * all. The old code found that out by calling `mkdir` and letting an `ENOENT`
+ * for `/var/task/.impasto-demo` reach the user, after the UI had already shown
+ * the write as successful. Knowing the mode up front means the app can say
+ * "read-only" honestly and refuse the write before anything optimistic happens.
+ */
+export type StorageMode = 'supabase' | 'demo' | 'demo-readonly'
+
+/**
+ * Whether the demo overlay can be persisted by this process.
+ *
+ * `IMPASTO_DEMO_DIR` is an explicit statement by whoever set it that the path
+ * is writable -- pointing it at `/tmp` is how a serverless demo can keep data
+ * for the life of one instance -- and `IMPASTO_DEMO_READONLY` forces the
+ * read-only path, which is what the tests use to reproduce the platform.
+ */
+export function isDemoWritable(): boolean {
+  if (typeof window !== 'undefined') return false
+  if (isTruthy(process.env.IMPASTO_DEMO_READONLY)) return false
+  if (process.env.IMPASTO_DEMO_DIR) return true
+  // Vercel sets VERCEL=1 in every runtime, build and preview environment.
+  return !process.env.VERCEL
+}
+
+export function storageMode(): StorageMode {
+  if (!isDemoMode()) return 'supabase'
+  return isDemoWritable() ? 'demo' : 'demo-readonly'
+}
+
+/** True when the current backend refuses every write. */
+export function isReadOnly(): boolean {
+  return storageMode() === 'demo-readonly'
+}
+
 export interface ServerEnv {
   supabaseUrl?: string
   supabaseAnonKey?: string
@@ -102,6 +146,9 @@ export interface ServerEnv {
   openFoodFactsUserAgent: string
   appUrl: string
   demoMode: boolean
+  storageMode: StorageMode
+  /** False when every mutation must be refused rather than attempted. */
+  writable: boolean
 }
 
 let cachedServerEnv: ServerEnv | null = null
@@ -140,6 +187,8 @@ export function serverEnv(): ServerEnv {
       data.OPENFOODFACTS_USER_AGENT ?? `${appConfig.name}/${appConfig.version}`,
     appUrl: publicEnv.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
     demoMode: isDemoMode(),
+    storageMode: storageMode(),
+    writable: storageMode() !== 'demo-readonly',
   }
   return cachedServerEnv
 }
@@ -168,8 +217,7 @@ export function validateStartup(): StartupProblem[] {
   const env = serverEnv()
   const problems: StartupProblem[] = []
 
-  const halfConfigured =
-    Boolean(env.supabaseUrl) !== Boolean(env.supabaseAnonKey)
+  const halfConfigured = Boolean(env.supabaseUrl) !== Boolean(env.supabaseAnonKey)
   if (halfConfigured) {
     problems.push({
       variable: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -186,12 +234,25 @@ export function validateStartup(): StartupProblem[] {
     })
   }
 
-  if (process.env.NODE_ENV === 'production' && env.demoMode) {
+  if (process.env.NODE_ENV === 'production' && env.storageMode === 'demo') {
     problems.push({
       variable: 'DEMO_MODE',
       message:
         'This deployment serves the bundled seed and stores changes on the server’s disk. ' +
         'Set Supabase credentials and DEMO_MODE=false for a real deployment.',
+      severity: 'warning',
+    })
+  }
+
+  // Not an error: a read-only demo is a coherent, honest configuration -- the
+  // catalog is fully browsable and every write is refused up front. It is only
+  // a mistake if someone expected it to keep their data.
+  if (env.storageMode === 'demo-readonly') {
+    problems.push({
+      variable: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      message:
+        'Read-only demo: this platform has no writable filesystem, so nothing can be saved. ' +
+        'Connect Supabase to make changes persist.',
       severity: 'warning',
     })
   }
@@ -232,6 +293,8 @@ export function validateStartup(): StartupProblem[] {
 
 export interface ConfigReport {
   demoMode: boolean
+  storageMode: StorageMode
+  writable: boolean
   supabase: boolean
   allowlistConfigured: boolean
   providers: { openai: boolean; supadata: boolean; openFoodFacts: boolean }
@@ -247,9 +310,13 @@ export function configReport(): ConfigReport {
   const env = serverEnv()
   const warnings: string[] = []
 
-  if (env.demoMode) {
+  if (env.storageMode === 'demo') {
+    warnings.push('Demo mode: data is served from the bundled seed and kept only on this machine.')
+  }
+  if (env.storageMode === 'demo-readonly') {
     warnings.push(
-      'Demo mode: data is served from the bundled seed and changes are not persisted.',
+      'Read-only demo: this platform has no writable storage, so every change is refused. ' +
+        'Connect Supabase to save anything.',
     )
   }
   if (env.supabaseUrl && !env.supabaseServiceRoleKey) {
@@ -261,6 +328,8 @@ export function configReport(): ConfigReport {
 
   return {
     demoMode: env.demoMode,
+    storageMode: env.storageMode,
+    writable: env.writable,
     supabase: Boolean(env.supabaseUrl && env.supabaseAnonKey),
     allowlistConfigured: env.allowedEmails.length > 0,
     providers: {

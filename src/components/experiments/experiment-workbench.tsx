@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useState, useTransition } from 'react'
 import { saveExperimentAction } from '@/app/actions/experiments'
 import { makeVersionPrimaryAction } from '@/app/actions/versions'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Select, Textarea } from '@/components/ui/primitives'
 import { useRouter } from '@/i18n/navigation'
@@ -51,7 +52,8 @@ export function ExperimentWorkbench({
   const [hypothesis, setHypothesis] = useState(existing?.hypothesis ?? '')
   const [conclusion, setConclusion] = useState(existing?.conclusion ?? '')
   const [winner, setWinner] = useState(existing?.winningVersionId ?? '')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
   const [saved, setSaved] = useState(false)
 
   const changed = rows.filter((row) => row.changed)
@@ -90,7 +92,7 @@ export function ExperimentWorkbench({
       // Making a version primary keeps the one it replaced, so nothing is lost
       // by declaring a winner and changing your mind later.
       if (result.ok) router.push(`/recipes/${recipeSlug}`)
-      else setError(result.error ?? t('errors.generic'))
+      else setError({ code: 'unknown' })
     })
   }
 
@@ -101,7 +103,7 @@ export function ExperimentWorkbench({
           <div className="grid gap-2 sm:grid-cols-2">
             {selectedIds.map((id, index) => (
               <label key={index} className="block">
-                <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+                <span className="text-ink-muted mb-1.5 block text-xs font-medium">
                   {t('experiments.slot', { number: index + 1 })}
                 </span>
                 <Select value={id} onChange={(event) => setSelection(index, event.target.value)}>
@@ -131,13 +133,13 @@ export function ExperimentWorkbench({
       </Card>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold tracking-wide text-ink-muted uppercase">
+        <h2 className="text-ink-muted mb-2 text-sm font-semibold tracking-wide uppercase">
           {t('experiments.whatChanged')}
         </h2>
         <Card>
           <CardBody className="p-0 sm:p-0">
             {changed.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-basil">{t('experiments.identical')}</p>
+              <p className="text-basil px-4 py-3 text-sm">{t('experiments.identical')}</p>
             ) : (
               <ComparisonTable rows={changed} selectedIds={selectedIds} versions={versions} />
             )}
@@ -147,7 +149,7 @@ export function ExperimentWorkbench({
 
       {unchanged.length > 0 ? (
         <details>
-          <summary className="cursor-pointer text-sm text-ink-muted">
+          <summary className="text-ink-muted cursor-pointer text-sm">
             {t('experiments.showUnchanged', { count: unchanged.length })}
           </summary>
           <Card className="mt-2">
@@ -161,7 +163,7 @@ export function ExperimentWorkbench({
       <Card>
         <CardBody className="space-y-3">
           <div>
-            <label htmlFor="exp-title" className="mb-1.5 block text-xs font-medium text-ink-muted">
+            <label htmlFor="exp-title" className="text-ink-muted mb-1.5 block text-xs font-medium">
               {t('experiments.name')}
             </label>
             <Input
@@ -173,7 +175,7 @@ export function ExperimentWorkbench({
           </div>
 
           <div>
-            <label htmlFor="exp-hyp" className="mb-1.5 block text-xs font-medium text-ink-muted">
+            <label htmlFor="exp-hyp" className="text-ink-muted mb-1.5 block text-xs font-medium">
               {t('experiments.hypothesis')}
             </label>
             <Textarea
@@ -185,7 +187,7 @@ export function ExperimentWorkbench({
           </div>
 
           <div>
-            <label htmlFor="exp-con" className="mb-1.5 block text-xs font-medium text-ink-muted">
+            <label htmlFor="exp-con" className="text-ink-muted mb-1.5 block text-xs font-medium">
               {t('experiments.conclusion')}
             </label>
             <Textarea
@@ -197,14 +199,10 @@ export function ExperimentWorkbench({
           </div>
 
           <div>
-            <label htmlFor="exp-win" className="mb-1.5 block text-xs font-medium text-ink-muted">
+            <label htmlFor="exp-win" className="text-ink-muted mb-1.5 block text-xs font-medium">
               {t('experiments.winner')}
             </label>
-            <Select
-              id="exp-win"
-              value={winner}
-              onChange={(event) => setWinner(event.target.value)}
-            >
+            <Select id="exp-win" value={winner} onChange={(event) => setWinner(event.target.value)}>
               <option value="">{t('experiments.noWinner')}</option>
               {selectedIds.map((id) => (
                 <option key={id} value={id}>
@@ -215,9 +213,9 @@ export function ExperimentWorkbench({
           </div>
 
           {error ? (
-            <p role="alert" className="flex items-start gap-2 text-sm text-tomato">
+            <p role="alert" className="text-tomato flex items-start gap-2 text-sm">
               <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {error}
+              {errorText(error)}
             </p>
           ) : null}
 
@@ -240,7 +238,7 @@ export function ExperimentWorkbench({
           </div>
 
           {saved ? (
-            <p role="status" className="flex items-center gap-2 text-sm text-basil">
+            <p role="status" className="text-basil flex items-center gap-2 text-sm">
               <Check aria-hidden className="size-4" />
               {t('experiments.savedConfirm')}
             </p>
@@ -267,21 +265,21 @@ function ComparisonTable({
     <div className="scroll-x">
       <table className="w-full min-w-[28rem] text-sm">
         <thead>
-          <tr className="border-b border-rule text-left">
-            <th scope="col" className="px-4 py-2 font-medium text-ink-muted">
+          <tr className="border-rule border-b text-left">
+            <th scope="col" className="text-ink-muted px-4 py-2 font-medium">
               {t('experiments.parameter')}
             </th>
             {selectedIds.map((id) => (
-              <th key={id} scope="col" className="px-4 py-2 font-medium text-ink-muted">
+              <th key={id} scope="col" className="text-ink-muted px-4 py-2 font-medium">
                 {versions.find((version) => version.id === id)?.label ?? id}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-rule">
+        <tbody className="divide-rule divide-y">
           {rows.map((row) => (
             <tr key={row.key}>
-              <th scope="row" className="px-4 py-2 text-left font-normal text-ink">
+              <th scope="row" className="text-ink px-4 py-2 text-left font-normal">
                 {t(`experiments.param.${row.key}`)}
               </th>
               {row.values.map((value, index) => (
@@ -289,7 +287,7 @@ function ComparisonTable({
                   key={index}
                   className={cn(
                     'tabular px-4 py-2',
-                    row.changed ? 'font-medium text-tomato-strong' : 'text-ink-faint',
+                    row.changed ? 'text-tomato-strong font-medium' : 'text-ink-faint',
                   )}
                 >
                   {value ?? '—'}
@@ -305,5 +303,9 @@ function ComparisonTable({
 
 export function ExperimentBadge({ changed }: { changed: number }) {
   const t = useTranslations()
-  return <Badge tone={changed > 0 ? 'warn' : 'good'}>{t('experiments.changed', { count: changed })}</Badge>
+  return (
+    <Badge tone={changed > 0 ? 'warn' : 'good'}>
+      {t('experiments.changed', { count: changed })}
+    </Badge>
+  )
 }

@@ -61,7 +61,12 @@ export default async function PlanPage({
           }
         />
       ) : (
-        <PlanBuilder plan={plan} recipes={recipes} recipeNames={namesById} />
+        <PlanBuilder
+          plan={plan}
+          recipes={recipes}
+          recipeNames={namesById}
+          writable={repository.writable}
+        />
       )}
     </div>
   )

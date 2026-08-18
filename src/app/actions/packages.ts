@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { Unit } from '@/domain'
 import { getRepository } from '@/lib/data'
+import type { ActionError } from '@/lib/data/errors'
+import { toActionError } from '@/lib/data/failure'
 
 /**
  * Remembers a package size the owner confirmed from a real label.
@@ -17,17 +19,20 @@ import { getRepository } from '@/lib/data'
 const schema = z.object({
   ingredientId: z.string().trim().min(1).max(200),
   label: z.string().trim().min(1).max(200),
-  value: z.string().trim().regex(/^\d+([.,]\d+)?$/, 'That is not a quantity'),
+  value: z
+    .string()
+    .trim()
+    .regex(/^\d+([.,]\d+)?$/, 'That is not a quantity'),
   unit: z.enum(['mg', 'g', 'kg', 'ml', 'l', 'piece']),
   barcode: z.string().trim().max(40).nullable().default(null),
 })
 
-export type RememberPackageResult = { ok: true; id: string } | { ok: false; error: string }
+export type RememberPackageResult = { ok: true; id: string } | { ok: false; error: ActionError }
 
 export async function rememberPackageAction(input: unknown): Promise<RememberPackageResult> {
   const parsed = schema.safeParse(input)
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'That package is not valid' }
+    return { ok: false, error: { code: 'validation' } }
   }
 
   try {
@@ -41,9 +46,6 @@ export async function rememberPackageAction(input: unknown): Promise<RememberPac
     revalidatePath('/', 'layout')
     return { ok: true, id: result.id }
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'The package size could not be saved',
-    }
+    return { ok: false, error: toActionError(error, 'rememberPackage') }
   }
 }

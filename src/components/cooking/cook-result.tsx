@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react'
 import { saveCookResultAction } from '@/app/actions/cook'
 import { uploadMediaAction } from '@/app/actions/media'
 import { MediaImage } from '@/components/media/media-image'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, Input, Label, Textarea } from '@/components/ui/primitives'
 import { useOffline } from '@/lib/client-env'
@@ -70,7 +71,8 @@ export function CookResult({
 
   const [saved, setSaved] = useState(false)
   const [queued, setQueued] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
 
   const addPhoto = async (file: File) => {
     setError(null)
@@ -156,11 +158,11 @@ export function CookResult({
       <Card className={queued ? 'border-amber' : 'border-basil'}>
         <CardBody className="flex items-start gap-2">
           {queued ? (
-            <CloudUpload aria-hidden className="mt-0.5 size-4 text-amber" />
+            <CloudUpload aria-hidden className="text-amber mt-0.5 size-4" />
           ) : (
-            <Check aria-hidden className="mt-0.5 size-4 text-basil" />
+            <Check aria-hidden className="text-basil mt-0.5 size-4" />
           )}
-          <p className={queued ? 'text-sm text-amber' : 'text-sm text-basil'}>
+          <p className={queued ? 'text-amber text-sm' : 'text-basil text-sm'}>
             {queued ? t('sync.offlineSaved') : t('cooking.resultSaved')}
           </p>
         </CardBody>
@@ -173,7 +175,7 @@ export function CookResult({
       <CardBody className="space-y-4">
         <div>
           <h2 className="font-display text-lg font-semibold">{t('cooking.resultTitle')}</h2>
-          <p className="mt-0.5 text-sm text-ink-muted">{t('cooking.resultHint')}</p>
+          <p className="text-ink-muted mt-0.5 text-sm">{t('cooking.resultHint')}</p>
         </div>
 
         <Stars label={t('cooking.overall')} value={rating} onChange={setRating} />
@@ -236,10 +238,10 @@ export function CookResult({
               event.target.value = ''
               if (file) void addPhoto(file)
             }}
-            className="block w-full text-sm text-ink-muted file:mr-3 file:rounded-full file:border-0 file:bg-paper-sunken file:px-3 file:py-1.5 file:text-sm"
+            className="text-ink-muted file:bg-paper-sunken block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:px-3 file:py-1.5 file:text-sm"
           />
           {uploading ? (
-            <p className="flex items-center gap-2 text-xs text-ink-faint">
+            <p className="text-ink-faint flex items-center gap-2 text-xs">
               <Loader2 aria-hidden className="size-3 animate-spin" />
               {t('media.processing')}
             </p>
@@ -249,12 +251,7 @@ export function CookResult({
             <ul className="flex flex-wrap gap-2">
               {photos.map((photo) => (
                 <li key={photo.id}>
-                  <MediaImage
-                    id={photo.id}
-                    url={null}
-                    alt={null}
-                    className="size-20 rounded-lg"
-                  />
+                  <MediaImage id={photo.id} url={null} alt={null} className="size-20 rounded-lg" />
                 </li>
               ))}
             </ul>
@@ -264,10 +261,10 @@ export function CookResult({
         {error ? (
           <p
             role="alert"
-            className="flex items-start gap-2 rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong"
+            className="bg-tomato-soft text-tomato-strong flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
           >
             <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {error}
+            {errorText(error)}
           </p>
         ) : null}
 
@@ -292,7 +289,7 @@ function Stars({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <span className="text-sm text-ink">{label}</span>
+      <span className="text-ink text-sm">{label}</span>
       <div className="flex gap-1" role="group" aria-label={label}>
         {[1, 2, 3, 4, 5].map((score) => (
           <button

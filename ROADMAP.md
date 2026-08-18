@@ -27,11 +27,26 @@ private bucket namespaced by owner with short-lived signed URLs; demo mode
 keeps the bytes in the browser's own IndexedDB. Deleting a recipe cleans up
 its objects rather than leaving them unreachable and billed for.
 
-**Real persistence.** One `save_recipe_with_media` function writes a whole
-recipe — translations, ingredients, steps, source, evidence, photos — in a
-single transaction under the caller's own RLS. Demo mode stores changes
-server-side on top of the seed; they survive a browser restart, and Settings
-has a confirmed reset that clears the photos too.
+**Real persistence, and honesty about when there is none.** One
+`save_recipe_with_media` function writes a whole recipe — translations,
+ingredients, steps, source, evidence, photos — in a single transaction under
+the caller's own RLS. Demo mode stores changes server-side on top of the seed;
+they survive a browser restart, and Settings has a confirmed reset that clears
+the photos too.
+
+There are three storage modes, reported by `/api/health` as `supabase`, `demo`
+or `demo-readonly`. The third is what a serverless deployment without Supabase
+actually is: the bundle's filesystem is read-only, so the demo overlay cannot
+be written at all. That case is now decided up front rather than discovered
+from a failed `mkdir` — every mutation is refused before any I/O, the controls
+that would have produced one are disabled with a localized explanation, and
+optimistic UI is withdrawn when a write does not land. Failures cross the wire
+as codes rather than messages, so a server path can never be rendered.
+
+`npm run seed:owner -- <uuid>` seeds the bundled catalog into a real Supabase
+project using the server-only service-role key, so a first deployment needs no
+`psql` and no direct connection string. It is idempotent and is also how a
+change to `src/lib/seed/` is pushed.
 
 **Import that finishes**, from three sources: a YouTube transcript, pasted
 text, or a photograph. Each goes through the same review screen and the same
@@ -131,6 +146,20 @@ The schema and the repository carry `session_ids`, and the comparison table is
 built from versions. Pulling the recorded ratings of the cooks that used each
 version into the same table is the obvious next step and is not built.
 
+Versioning itself now works on the seeded catalog: a snapshot is taken whenever
+an existing recipe genuinely changes, not only when it was already `verified`,
+and an unchanged save produces none. Before that, nothing in the bundled
+catalog could ever accumulate a version, so the Experiments screen listed every
+recipe and told the owner the same thing about all of them.
+
+### Hydration is editable, other percentages are not
+
+The scaler can be re-hydrated: the target mass and every other baker's
+percentage hold while flour and water rebalance, and a preferment keeps its
+share of both. Salt, yeast and oil have no equivalent editor yet — the shape of
+the domain function is there (`withHydration`), and the same treatment for the
+other roles is a small extension rather than new machinery.
+
 ### HEIC
 
 Refused with a message explaining what to do instead. Decoding it would mean
@@ -155,6 +184,13 @@ deliberately not one settled for them.
 session cookie, photos in the browser's IndexedDB. That survives a restart but
 does not follow you to another device and is not backed up. Connecting Supabase
 is what that is for.
+
+**A serverless demo saves nothing at all.** With no Supabase and no writable
+filesystem the app runs in `demo-readonly`: the whole catalog is browsable and
+every mutation is refused, clearly and in the user's language. This is the
+honest behaviour for that configuration rather than a limitation to fix —
+`IMPASTO_DEMO_DIR=/tmp/impasto` buys persistence for the life of one instance,
+and Supabase is the real answer.
 
 **The offline queue is per-device and narrow by design.** Recipe drafts and
 cooking results only; anything else fails loudly rather than being replayed

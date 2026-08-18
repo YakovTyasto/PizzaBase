@@ -5,24 +5,11 @@ import { useTranslations } from 'next-intl'
 import { useState, useTransition } from 'react'
 import { addPantryItemAction, removePantryItemAction } from '@/app/actions/pantry'
 import { AmountDisplay } from '@/components/recipe/amount-display'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
-import {
-  Badge,
-  Card,
-  CardBody,
-  EmptyState,
-  Input,
-  Label,
-  Select,
-} from '@/components/ui/primitives'
+import { Badge, Card, CardBody, EmptyState, Input, Label, Select } from '@/components/ui/primitives'
 import { Link } from '@/i18n/navigation'
-import {
-  COUNT_UNITS,
-  MASS_UNITS,
-  PACKAGE_UNITS,
-  VOLUME_UNITS,
-  type Unit,
-} from '@/domain'
+import { COUNT_UNITS, MASS_UNITS, PACKAGE_UNITS, VOLUME_UNITS, type Unit } from '@/domain'
 import { type WireAmount, deserializeAmount } from '@/lib/data/serialize'
 
 interface PantryRow {
@@ -49,13 +36,17 @@ function unitsForMeasure(measure: string): readonly Unit[] {
 export function PantryManager({
   items,
   ingredients,
+  writable,
 }: {
   items: PantryRow[]
   ingredients: { id: string; name: string; baseUnit: Unit; measure: string }[]
+  /** False on a read-only deployment: adding and removing are refused up front. */
+  writable: boolean
 }) {
   const t = useTranslations()
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
 
   const [ingredientId, setIngredientId] = useState(ingredients[0]?.id ?? '')
   const [quantity, setQuantity] = useState('')
@@ -151,7 +142,7 @@ export function PantryManager({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={submit} disabled={pending || !quantity || !ingredientId}>
+            <Button onClick={submit} disabled={pending || !quantity || !ingredientId || !writable}>
               <Plus aria-hidden />
               {t('pantry.add')}
             </Button>
@@ -163,9 +154,15 @@ export function PantryManager({
             </Link>
           </div>
 
+          {!writable ? (
+            <p className="bg-amber-soft text-amber rounded-lg px-3 py-2 text-sm">
+              {t('demo.readOnlyHint')}
+            </p>
+          ) : null}
+
           {error ? (
-            <p role="alert" className="text-sm text-tomato">
-              {error}
+            <p role="alert" className="text-tomato text-sm">
+              {errorText(error)}
             </p>
           ) : null}
         </CardBody>
@@ -180,11 +177,11 @@ export function PantryManager({
       ) : (
         <Card>
           <CardBody className="p-0 sm:p-0">
-            <ul className="divide-y divide-rule">
+            <ul className="divide-rule divide-y">
               {items.map((item) => (
                 <li key={item.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-ink">{item.name}</p>
+                    <p className="text-ink text-sm font-medium">{item.name}</p>
                     <p className="mt-0.5 flex items-center gap-2">
                       <AmountDisplay amount={deserializeAmount(item.amount)} />
                       <Badge tone="outline">
@@ -200,7 +197,7 @@ export function PantryManager({
                     variant="ghost"
                     size="sm"
                     aria-label={t('common.delete')}
-                    disabled={pending}
+                    disabled={pending || !writable}
                     onClick={() => remove(item.id)}
                   >
                     <Trash2 aria-hidden />

@@ -5,7 +5,8 @@ import { AlertTriangle, ArrowDown, ArrowUp, Loader2, Plus, Save, Trash2 } from '
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { saveRecipeAction } from '@/app/actions/recipes'
-import { computeBakersPercentages } from '@/domain'
+import { type DoughComponent, computeBakersPercentages } from '@/domain'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import {
   Badge,
@@ -13,6 +14,7 @@ import {
   CardBody,
   DataRow,
   Input,
+  NumericInput,
   Label,
   SectionHeading,
   Select,
@@ -23,6 +25,7 @@ import type { DraftValidationIssue, RecipeDraft } from '@/lib/data/recipe-draft'
 import { validateDraft } from '@/lib/data/recipe-draft'
 import { useOffline } from '@/lib/client-env'
 import { enqueue } from '@/lib/offline/queue'
+import { formatPercentValue } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { MediaEditor } from './media-editor'
 import { TranslatePanel } from './translate-panel'
@@ -66,7 +69,8 @@ export function RecipeEditor({
   const [section, setSection] = useState<Section>('general')
   const [showErrors, setShowErrors] = useState(false)
   const [serverIssues, setServerIssues] = useState<DraftValidationIssue[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
   const [saved, setSaved] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [queued, setQueued] = useState(false)
@@ -88,25 +92,43 @@ export function RecipeEditor({
 
   const bakers = useMemo(() => {
     if (draft.type !== 'dough') return null
-    const components = draft.items.flatMap((item) => {
-      if (!item.ingredientSlug || item.amount.kind !== 'exact') return []
-      if (item.amount.unit !== 'g' && item.amount.unit !== 'kg') return []
-      const grams =
-        item.amount.unit === 'kg'
-          ? new Decimal(item.amount.value.replace(',', '.') || 0).times(1000)
-          : new Decimal(item.amount.value.replace(',', '.') || 0)
-      return [
-        {
-          ingredientId: item.ingredientSlug,
-          role: roleForIngredient(item.ingredientSlug),
-          grams: grams.toString(),
-          stage: (item.group === 'poolish' || item.group === 'biga'
-            ? 'preferment'
-            : 'final') as 'preferment' | 'final',
-        },
-      ]
+
+    const grams = (value: string, unit: string) => {
+      const parsed = new Decimal(value.replace(',', '.') || 0)
+      return (unit === 'kg' ? parsed.times(1000) : parsed).toString()
+    }
+
+    const components = draft.items.flatMap((item): DoughComponent[] => {
+      if (!item.ingredientSlug) return []
+      const role = roleForIngredient(item.ingredientSlug)
+      const stage = (item.group === 'poolish' || item.group === 'biga' ? 'preferment' : 'final') as
+        'preferment' | 'final'
+      const base = { ingredientId: item.ingredientSlug, role, stage }
+
+      if (item.amount.kind === 'exact') {
+        if (item.amount.unit !== 'g' && item.amount.unit !== 'kg') return []
+        return [{ ...base, grams: grams(item.amount.value, item.amount.unit) }]
+      }
+      // A disputed weight is still a weight. Dropping it was what made salt
+      // stated as "25-30 g" show up as 0% of the flour.
+      if (item.amount.kind === 'range') {
+        if (item.amount.unit !== 'g' && item.amount.unit !== 'kg') return []
+        const min = grams(item.amount.min, item.amount.unit)
+        const max = grams(item.amount.max, item.amount.unit)
+        return [
+          {
+            ...base,
+            grams: new Decimal(min).plus(max).dividedBy(2).toString(),
+            gramsMin: min,
+            gramsMax: max,
+          },
+        ]
+      }
+      if (item.optional) return []
+      return [{ ...base, grams: 0, unknown: true }]
     })
-    if (!components.some((c) => c.role === 'flour')) return null
+
+    if (!components.some((c) => c.role === 'flour' && !c.unknown)) return null
     try {
       return computeBakersPercentages({ preferment: 'none', components })
     } catch {
@@ -152,7 +174,7 @@ export function RecipeEditor({
           setError(null)
           return
         }
-        setError(cause instanceof Error ? cause.message : t('errors.generic'))
+        setError({ code: 'unknown' })
       }
     })
   }
@@ -175,7 +197,9 @@ export function RecipeEditor({
             value={value}
             aria-invalid={issue ? true : undefined}
             onChange={(event) =>
-              update({ [field]: { ...draft[field], [locale]: event.target.value } } as never)
+              update({
+                [field]: { ...draft[field], [locale]: event.target.value },
+              } as never)
             }
           />
         ) : (
@@ -184,7 +208,9 @@ export function RecipeEditor({
             value={value}
             aria-invalid={issue ? true : undefined}
             onChange={(event) =>
-              update({ [field]: { ...draft[field], [locale]: event.target.value } } as never)
+              update({
+                [field]: { ...draft[field], [locale]: event.target.value },
+              } as never)
             }
           />
         )}
@@ -200,7 +226,7 @@ export function RecipeEditor({
         <div
           role="tablist"
           aria-label={t('settings.language')}
-          className="inline-flex rounded-full border border-rule p-0.5"
+          className="border-rule inline-flex rounded-full border p-0.5"
         >
           {LOCALES.map((option) => (
             <button
@@ -211,9 +237,7 @@ export function RecipeEditor({
               onClick={() => setLocale(option)}
               className={cn(
                 'min-w-12 rounded-full px-3 py-1.5 text-xs font-semibold uppercase transition-colors',
-                locale === option
-                  ? 'bg-ink text-paper'
-                  : 'text-ink-muted hover:bg-paper-sunken',
+                locale === option ? 'bg-ink text-paper' : 'text-ink-muted hover:bg-paper-sunken',
               )}
             >
               {option}
@@ -298,7 +322,10 @@ export function RecipeEditor({
 
               if (parts.length === 1) {
                 const key = parts[0] as 'names' | 'summaries' | 'notes'
-                next = { ...next, [key]: { ...next[key], [locale]: change.text } }
+                next = {
+                  ...next,
+                  [key]: { ...next[key], [locale]: change.text },
+                }
                 continue
               }
 
@@ -309,7 +336,13 @@ export function RecipeEditor({
                 ...next,
                 steps: next.steps.map((step, i) =>
                   i === index
-                    ? { ...step, [field]: { ...(step[field] ?? {}), [locale]: change.text } }
+                    ? {
+                        ...step,
+                        [field]: {
+                          ...(step[field] ?? {}),
+                          [locale]: change.text,
+                        },
+                      }
                     : step,
                 ),
               }
@@ -345,11 +378,11 @@ export function RecipeEditor({
       {error ? (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong"
+          className="bg-tomato-soft text-tomato-strong flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
         >
           <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
-            {error}
+            {errorText(error)}
             {visibleIssues.length > 0 ? (
               <ul className="mt-1 list-disc pl-4">
                 {visibleIssues.slice(0, 6).map((issue, index) => (
@@ -364,7 +397,7 @@ export function RecipeEditor({
       ) : null}
 
       {/* Sticky save bar so the action is reachable from any section. */}
-      <div className="sticky bottom-20 z-20 flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-rule bg-paper-raised/95 p-3 backdrop-blur lg:bottom-4">
+      <div className="border-rule bg-paper-raised/95 sticky bottom-20 z-20 flex flex-wrap gap-2 rounded-[var(--radius-card)] border p-3 backdrop-blur lg:bottom-4">
         <Button onClick={submit} disabled={pending}>
           {pending ? <Loader2 aria-hidden className="animate-spin" /> : <Save aria-hidden />}
           {isNew ? t('editor.create') : t('common.save')}
@@ -381,7 +414,7 @@ export function RecipeEditor({
         </Button>
 
         {!isNew && draft.status === 'verified' ? (
-          <label className="flex items-center gap-2 text-xs text-ink-muted">
+          <label className="text-ink-muted flex items-center gap-2 text-xs">
             <input
               type="checkbox"
               checked={draft.createVersion}
@@ -398,7 +431,7 @@ export function RecipeEditor({
 
 function FieldError({ message }: { message: string }) {
   return (
-    <p className="mt-1 text-xs text-tomato" role="alert">
+    <p className="text-tomato mt-1 text-xs" role="alert">
       {message}
     </p>
   )
@@ -471,7 +504,9 @@ function GeneralSection({
               id="authenticity"
               value={draft.authenticity}
               onChange={(event) =>
-                update({ authenticity: event.target.value as RecipeDraft['authenticity'] })
+                update({
+                  authenticity: event.target.value as RecipeDraft['authenticity'],
+                })
               }
             >
               {(
@@ -497,7 +532,9 @@ function GeneralSection({
               id="originLocale"
               value={draft.originLocale}
               onChange={(event) =>
-                update({ originLocale: event.target.value as RecipeDraft['originLocale'] })
+                update({
+                  originLocale: event.target.value as RecipeDraft['originLocale'],
+                })
               }
             >
               {LOCALES.map((value) => (
@@ -563,7 +600,9 @@ function GeneralSection({
               id="yieldUnit"
               value={draft.yieldUnit ?? ''}
               onChange={(event) =>
-                update({ yieldUnit: (event.target.value || null) as RecipeDraft['yieldUnit'] })
+                update({
+                  yieldUnit: (event.target.value || null) as RecipeDraft['yieldUnit'],
+                })
               }
               aria-invalid={issueFor('yieldUnit') ? true : undefined}
             >
@@ -582,7 +621,9 @@ function GeneralSection({
               id="shape"
               value={draft.baseShape ?? ''}
               onChange={(event) =>
-                update({ baseShape: (event.target.value || null) as RecipeDraft['baseShape'] })
+                update({
+                  baseShape: (event.target.value || null) as RecipeDraft['baseShape'],
+                })
               }
             >
               <option value="">{t('common.none')}</option>
@@ -594,14 +635,14 @@ function GeneralSection({
           {draft.baseShape === 'round' ? (
             <div>
               <Label htmlFor="diameter">{t('recipe.diameter')} (mm)</Label>
-              <Input
+              <NumericInput
                 id="diameter"
-                type="number"
-                inputMode="numeric"
                 value={draft.baseDiameterMm ?? ''}
                 aria-invalid={issueFor('baseDiameterMm') ? true : undefined}
                 onChange={(event) =>
-                  update({ baseDiameterMm: event.target.value ? Number(event.target.value) : null })
+                  update({
+                    baseDiameterMm: event.target.value ? Number(event.target.value) : null,
+                  })
                 }
               />
               {issueFor('baseDiameterMm') ? (
@@ -614,9 +655,8 @@ function GeneralSection({
             <>
               <div>
                 <Label htmlFor="trayW">{t('editor.trayWidth')} (mm)</Label>
-                <Input
+                <NumericInput
                   id="trayW"
-                  type="number"
                   value={draft.baseTrayWidthMm ?? ''}
                   onChange={(event) =>
                     update({
@@ -627,9 +667,8 @@ function GeneralSection({
               </div>
               <div>
                 <Label htmlFor="trayH">{t('editor.trayHeight')} (mm)</Label>
-                <Input
+                <NumericInput
                   id="trayH"
-                  type="number"
                   value={draft.baseTrayHeightMm ?? ''}
                   onChange={(event) =>
                     update({
@@ -653,24 +692,26 @@ function GeneralSection({
 
           <div>
             <Label htmlFor="activeMinutes">{t('recipe.activeTime')} (min)</Label>
-            <Input
+            <NumericInput
               id="activeMinutes"
-              type="number"
               value={draft.activeMinutes ?? ''}
               onChange={(event) =>
-                update({ activeMinutes: event.target.value ? Number(event.target.value) : null })
+                update({
+                  activeMinutes: event.target.value ? Number(event.target.value) : null,
+                })
               }
             />
           </div>
 
           <div>
             <Label htmlFor="passiveMinutes">{t('cooking.waiting')} (min)</Label>
-            <Input
+            <NumericInput
               id="passiveMinutes"
-              type="number"
               value={draft.passiveMinutes ?? ''}
               onChange={(event) =>
-                update({ passiveMinutes: event.target.value ? Number(event.target.value) : null })
+                update({
+                  passiveMinutes: event.target.value ? Number(event.target.value) : null,
+                })
               }
             />
           </div>
@@ -769,11 +810,11 @@ function IngredientsSection({
           </div>
 
           {draft.items.length === 0 ? (
-            <p className="py-4 text-sm text-ink-muted">{t('editor.noIngredients')}</p>
+            <p className="text-ink-muted py-4 text-sm">{t('editor.noIngredients')}</p>
           ) : (
             <ul className="space-y-3">
               {draft.items.map((item, index) => (
-                <li key={item.key} className="rounded-lg border border-rule p-3">
+                <li key={item.key} className="border-rule rounded-lg border p-3">
                   <div className="mb-2 flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       {item.componentSlug !== null ? (
@@ -785,7 +826,9 @@ function IngredientsSection({
                             id={`item-${index}-component`}
                             value={item.componentSlug ?? ''}
                             onChange={(event) =>
-                              setItem(index, { componentSlug: event.target.value })
+                              setItem(index, {
+                                componentSlug: event.target.value,
+                              })
                             }
                           >
                             {options.components.map((component) => (
@@ -804,7 +847,9 @@ function IngredientsSection({
                             id={`item-${index}-ingredient`}
                             value={item.ingredientSlug ?? ''}
                             onChange={(event) =>
-                              setItem(index, { ingredientSlug: event.target.value })
+                              setItem(index, {
+                                ingredientSlug: event.target.value,
+                              })
                             }
                           >
                             {options.ingredients.map((ingredient) => (
@@ -841,7 +886,9 @@ function IngredientsSection({
                         size="sm"
                         aria-label={t('common.delete')}
                         onClick={() =>
-                          update({ items: draft.items.filter((_, i) => i !== index) })
+                          update({
+                            items: draft.items.filter((_, i) => i !== index),
+                          })
                         }
                       >
                         <Trash2 aria-hidden />
@@ -887,7 +934,7 @@ function IngredientsSection({
                     </div>
                   </div>
 
-                  <label className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
+                  <label className="text-ink-muted mt-2 flex items-center gap-2 text-xs">
                     <input
                       type="checkbox"
                       checked={item.optional}
@@ -911,13 +958,13 @@ function IngredientsSection({
             <SectionHeading>{t('recipe.bakersPercentages')}</SectionHeading>
             <dl>
               <DataRow label={t('recipe.hydration')}>
-                {bakers.hydrationPct.toDecimalPlaces(2).toString()}%
+                {formatPercentValue(bakers.hydrationPct, locale, 2)}%
               </DataRow>
               <DataRow label={t('recipe.salt')}>
-                {bakers.saltPct.toDecimalPlaces(2).toString()}%
+                {formatPercentValue(bakers.saltPct, locale, 2)}%
               </DataRow>
               <DataRow label={t('recipe.yeast')}>
-                {bakers.yeastPct.toDecimalPlaces(3).toString()}%
+                {formatPercentValue(bakers.yeastPct, locale, 3)}%
               </DataRow>
               <DataRow label={t('recipe.totalDough')}>
                 {bakers.totalDoughG.toDecimalPlaces(0).toString()} g
@@ -946,7 +993,9 @@ function StepsSection({
   const t = useTranslations()
 
   const setStep = (index: number, patch: Partial<RecipeDraft['steps'][number]>) => {
-    update({ steps: draft.steps.map((step, i) => (i === index ? { ...step, ...patch } : step)) })
+    update({
+      steps: draft.steps.map((step, i) => (i === index ? { ...step, ...patch } : step)),
+    })
   }
 
   const move = (index: number, delta: number) => {
@@ -991,13 +1040,13 @@ function StepsSection({
         </Button>
 
         {draft.steps.length === 0 ? (
-          <p className="py-4 text-sm text-ink-muted">{t('recipe.noSteps')}</p>
+          <p className="text-ink-muted py-4 text-sm">{t('recipe.noSteps')}</p>
         ) : (
           <ol className="space-y-3">
             {draft.steps.map((step, index) => (
-              <li key={step.key} className="rounded-lg border border-rule p-3">
+              <li key={step.key} className="border-rule rounded-lg border p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-ink-muted">{index + 1}</span>
+                  <span className="text-ink-muted text-sm font-semibold">{index + 1}</span>
                   <div className="flex gap-1">
                     <Button
                       variant="ghost"
@@ -1021,7 +1070,11 @@ function StepsSection({
                       variant="ghost"
                       size="sm"
                       aria-label={t('common.delete')}
-                      onClick={() => update({ steps: draft.steps.filter((_, i) => i !== index) })}
+                      onClick={() =>
+                        update({
+                          steps: draft.steps.filter((_, i) => i !== index),
+                        })
+                      }
                     >
                       <Trash2 aria-hidden />
                     </Button>
@@ -1036,7 +1089,10 @@ function StepsSection({
                   aria-invalid={issueFor(`steps.${index}.instructions`) ? true : undefined}
                   onChange={(event) =>
                     setStep(index, {
-                      instructions: { ...step.instructions, [locale]: event.target.value },
+                      instructions: {
+                        ...step.instructions,
+                        [locale]: event.target.value,
+                      },
                     })
                   }
                 />
@@ -1058,8 +1114,18 @@ function StepsSection({
                     >
                       {(
                         [
-                          'preferment', 'mix', 'bulk', 'fold', 'ball', 'cold_proof',
-                          'warm_up', 'shape', 'bake', 'serve', 'prep', 'other',
+                          'preferment',
+                          'mix',
+                          'bulk',
+                          'fold',
+                          'ball',
+                          'cold_proof',
+                          'warm_up',
+                          'shape',
+                          'bake',
+                          'serve',
+                          'prep',
+                          'other',
                         ] as const
                       ).map((phase) => (
                         <option key={phase} value={phase}>
@@ -1071,48 +1137,47 @@ function StepsSection({
 
                   <div>
                     <Label htmlFor={`step-${index}-active`}>{t('cooking.activeWork')} (min)</Label>
-                    <Input
+                    <NumericInput
                       id={`step-${index}-active`}
-                      type="number"
-                      min={0}
                       value={step.activeMinutes}
                       onChange={(event) =>
-                        setStep(index, { activeMinutes: Number(event.target.value) || 0 })
+                        setStep(index, {
+                          activeMinutes: Number(event.target.value) || 0,
+                        })
                       }
                     />
                   </div>
 
                   <div>
                     <Label htmlFor={`step-${index}-waitmin`}>{t('planner.short')} (min)</Label>
-                    <Input
+                    <NumericInput
                       id={`step-${index}-waitmin`}
-                      type="number"
-                      min={0}
                       value={step.waitMinMinutes}
                       onChange={(event) =>
-                        setStep(index, { waitMinMinutes: Number(event.target.value) || 0 })
+                        setStep(index, {
+                          waitMinMinutes: Number(event.target.value) || 0,
+                        })
                       }
                     />
                   </div>
 
                   <div>
                     <Label htmlFor={`step-${index}-waitmax`}>{t('planner.long')} (min)</Label>
-                    <Input
+                    <NumericInput
                       id={`step-${index}-waitmax`}
-                      type="number"
-                      min={0}
                       value={step.waitMaxMinutes}
                       onChange={(event) =>
-                        setStep(index, { waitMaxMinutes: Number(event.target.value) || 0 })
+                        setStep(index, {
+                          waitMaxMinutes: Number(event.target.value) || 0,
+                        })
                       }
                     />
                   </div>
 
                   <div>
                     <Label htmlFor={`step-${index}-temp`}>{t('cooking.temperature')} (°C)</Label>
-                    <Input
+                    <NumericInput
                       id={`step-${index}-temp`}
-                      type="number"
                       value={step.temperatureC ?? ''}
                       onChange={(event) =>
                         setStep(index, {
@@ -1124,9 +1189,8 @@ function StepsSection({
 
                   <div>
                     <Label htmlFor={`step-${index}-timer`}>{t('cooking.timer')} (s)</Label>
-                    <Input
+                    <NumericInput
                       id={`step-${index}-timer`}
-                      type="number"
                       value={step.timerSeconds ?? ''}
                       onChange={(event) =>
                         setStep(index, {
@@ -1155,7 +1219,7 @@ function StepsSection({
                   />
                 </div>
 
-                <label className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
+                <label className="text-ink-muted mt-2 flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
                     checked={!step.durationKnown}
@@ -1168,7 +1232,7 @@ function StepsSection({
                 {/* Which ingredients this step uses, for cooking mode. */}
                 {draft.items.length > 0 ? (
                   <fieldset className="mt-2">
-                    <legend className="mb-1 text-xs text-ink-muted">
+                    <legend className="text-ink-muted mb-1 text-xs">
                       {t('cooking.ingredientsForStep')}
                     </legend>
                     <div className="flex flex-wrap gap-2">
@@ -1242,7 +1306,15 @@ function SourceSection({
                 }
               >
                 {(
-                  ['user', 'youtube', 'official', 'website', 'photo', 'text', 'ai_assisted'] as const
+                  [
+                    'user',
+                    'youtube',
+                    'official',
+                    'website',
+                    'photo',
+                    'text',
+                    'ai_assisted',
+                  ] as const
                 ).map((value) => (
                   <option key={value} value={value}>
                     {value}
@@ -1333,11 +1405,11 @@ function SourceSection({
           </SectionHeading>
 
           {draft.evidence.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t('editor.noEvidence')}</p>
+            <p className="text-ink-muted text-sm">{t('editor.noEvidence')}</p>
           ) : (
             <ul className="space-y-3">
               {draft.evidence.map((entry, index) => (
-                <li key={index} className="rounded-lg border border-rule p-3">
+                <li key={index} className="border-rule rounded-lg border p-3">
                   <div className="grid gap-2 sm:grid-cols-3">
                     <div>
                       <Label htmlFor={`ev-${index}-field`}>{t('editor.field')}</Label>
@@ -1383,17 +1455,19 @@ function SourceSection({
                     </div>
                     <div>
                       <Label htmlFor={`ev-${index}-confidence`}>{t('evidence.confidence')}</Label>
-                      <Input
+                      <NumericInput
+                        decimal
                         id={`ev-${index}-confidence`}
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.1}
                         value={entry.confidence}
                         onChange={(event) =>
                           update({
                             evidence: draft.evidence.map((e, i) =>
-                              i === index ? { ...e, confidence: Number(event.target.value) } : e,
+                              i === index
+                                ? {
+                                    ...e,
+                                    confidence: Number(event.target.value),
+                                  }
+                                : e,
                             ),
                           })
                         }
@@ -1411,7 +1485,13 @@ function SourceSection({
                           update({
                             evidence: draft.evidence.map((e, i) =>
                               i === index
-                                ? { ...e, notes: { ...e.notes, [locale]: event.target.value } }
+                                ? {
+                                    ...e,
+                                    notes: {
+                                      ...e.notes,
+                                      [locale]: event.target.value,
+                                    },
+                                  }
                                 : e,
                             ),
                           })
@@ -1423,7 +1503,9 @@ function SourceSection({
                       size="sm"
                       aria-label={t('common.delete')}
                       onClick={() =>
-                        update({ evidence: draft.evidence.filter((_, i) => i !== index) })
+                        update({
+                          evidence: draft.evidence.filter((_, i) => i !== index),
+                        })
                       }
                     >
                       <Trash2 aria-hidden />

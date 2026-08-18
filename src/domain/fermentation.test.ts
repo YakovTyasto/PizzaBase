@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { type PlannableStep, planBackwards, planToIcs, totalWindowMinutes } from './fermentation'
+import {
+  type PlannableStep,
+  type StepPhase,
+  hasSchedulableTiming,
+  planBackwards,
+  planToIcs,
+  totalWindowMinutes,
+} from './fermentation'
 
 const steps: PlannableStep[] = [
   {
@@ -114,5 +121,53 @@ describe('ics export', () => {
     const ics = planToIcs(plan, {}, 'Impasto')
     expect(ics).not.toContain('UID:ball@impasto')
     expect(ics).toContain('UID:bake@impasto')
+  })
+})
+
+/**
+ * What the planner is for.
+ *
+ * It schedules *waiting* backwards from dinner. A recipe made only of hands-on
+ * steps has nothing to arrange around, and offering it a "fermentation planner"
+ * promises a calculation the recipe cannot support -- which is exactly what a
+ * raw tomato sauce was doing.
+ */
+describe('deciding whether a recipe can be planned at all', () => {
+  const handsOn = (phase: StepPhase, activeMinutes: number): PlannableStep => ({
+    id: `step-${phase}-${activeMinutes}`,
+    sortOrder: 0,
+    phase,
+    activeMinutes,
+    waitMinMinutes: 0,
+    waitMaxMinutes: 0,
+    durationKnown: true,
+  })
+
+  it('says no to a recipe that is all active work', () => {
+    // A raw sauce: crush, tear, salt, stir. No waiting anywhere.
+    const sauce = [handsOn('prep', 5), handsOn('prep', 2), handsOn('prep', 1), handsOn('prep', 2)]
+    expect(hasSchedulableTiming(sauce)).toBe(false)
+  })
+
+  it('says yes as soon as there is something to wait for', () => {
+    expect(
+      hasSchedulableTiming([
+        handsOn('mix', 20),
+        { ...handsOn('bulk', 0), waitMinMinutes: 1200, waitMaxMinutes: 1560 },
+      ]),
+    ).toBe(true)
+  })
+
+  it('says yes for a resting phase even when its duration is not stated', () => {
+    // A poolish with no captured time is still a thing you wait for; the
+    // planner shows it as approximate rather than pretending it is not there.
+    expect(hasSchedulableTiming([{ ...handsOn('preferment', 10), durationKnown: false }])).toBe(
+      true,
+    )
+    expect(hasSchedulableTiming([handsOn('cold_proof', 0)])).toBe(true)
+  })
+
+  it('says no to an empty step list', () => {
+    expect(hasSchedulableTiming([])).toBe(false)
   })
 })

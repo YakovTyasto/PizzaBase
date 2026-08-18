@@ -43,18 +43,40 @@ running into a cookie size limit. A badge in the header says you are in demo
 mode, because an app that quietly forgets your data is worse than one that
 tells you it will.
 
+### Where your data actually goes
+
+There are three storage modes, and `/api/health` names the one in force:
+
+| `mode`          | When                                | What happens to a change                                                            |
+| --------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
+| `supabase`      | Supabase credentials are set        | Saved to the database.                                                              |
+| `demo`          | No Supabase, writable filesystem    | Kept on this machine's disk, under `IMPASTO_DEMO_DIR` (default `.impasto-demo/`).   |
+| `demo-readonly` | No Supabase, no writable filesystem | Nothing is saved. Every mutation is refused up front and the controls are disabled. |
+
+`demo-readonly` is what a serverless platform gives you: the deployment bundle
+is read-only, so a demo overlay cannot be written at all. The catalog stays
+fully browsable — you can read every recipe, scale it, plan a pizza night in
+the scaler — but the plan, the pantry and the editor say plainly that nothing
+can be kept until Supabase is connected. **Deploying to Vercel without Supabase
+gives you a read-only demo**, which is a legitimate way to show the app and a
+poor way to use it.
+
+If you want a serverless demo that keeps data for the life of one instance, set
+`IMPASTO_DEMO_DIR=/tmp/impasto`. That is a statement that the path is writable;
+it will still be lost whenever the instance is recycled.
+
 ### What to look at first
 
-| Where | Why |
-| --- | --- |
-| `/ru/recipes/sisofo-forgotten-neapolitan` | A real formula. Change the ball count and watch every ingredient and the baker's percentages recompute. |
-| `/ru/recipes/margherita-user` | The opposite: quantities the owner never wrote down, shown as questions rather than zeros. |
-| `/ru/recipes/pesto-genovese-user` | A source that contradicts itself, recorded as a conflict instead of being quietly "fixed". |
-| `/ru/plan` → `/ru/shopping` | Build a pizza night, get one consolidated list with pantry deduction and package rounding. |
-| `/ru/recipes/new?type=sauce` | Write a recipe of your own. Four kinds of quantity, including "unknown", which stays unknown. |
-| `/ru/review` | Every open question in one place — each answerable once, after which the calculations that depend on it follow. |
-| `/ru/import?tab=text` | Paste any text. With no API key a fixture stands in, deliberately containing an unknown amount and a contradiction. |
-| `/ru/settings` | Exactly which integrations are live and which environment variable would enable each one. |
+| Where                                     | Why                                                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `/ru/recipes/sisofo-forgotten-neapolitan` | A real formula. Change the ball count and watch every ingredient and the baker's percentages recompute.             |
+| `/ru/recipes/margherita-user`             | The opposite: quantities the owner never wrote down, shown as questions rather than zeros.                          |
+| `/ru/recipes/pesto-genovese-user`         | A source that contradicts itself, recorded as a conflict instead of being quietly "fixed".                          |
+| `/ru/plan` → `/ru/shopping`               | Build a pizza night, get one consolidated list with pantry deduction and package rounding.                          |
+| `/ru/recipes/new?type=sauce`              | Write a recipe of your own. Four kinds of quantity, including "unknown", which stays unknown.                       |
+| `/ru/review`                              | Every open question in one place — each answerable once, after which the calculations that depend on it follow.     |
+| `/ru/import?tab=text`                     | Paste any text. With no API key a fixture stands in, deliberately containing an unknown amount and a contradiction. |
+| `/ru/settings`                            | Exactly which integrations are live and which environment variable would enable each one.                           |
 
 ### The ten-minute tour
 
@@ -62,7 +84,7 @@ Nothing below needs an account, a database or an API key:
 
 1. Create a sauce at `/ru/recipes/new?type=sauce` — give it a yield, add a can
    of tomatoes, basil "to taste", and leave the oil's amount unknown.
-2. Create a pizza and add that sauce as a *component*. Its ingredients expand
+2. Create a pizza and add that sauce as a _component_. Its ingredients expand
    into the pizza's list, scaled by how much of the batch you used.
 3. Rescale the pizza; add it to `/ru/plan`; open `/ru/shopping` and see the
    sauce broken back down into what you actually have to buy.
@@ -96,7 +118,9 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # ESLint
 npm run check        # typecheck + lint + unit tests
 
+npm run format       # Prettier over the tree
 npm run seed         # regenerate supabase/seed.sql from the TypeScript catalog
+npm run seed:owner -- <uuid>   # seed the catalog into Supabase for one owner
 npm run db:verify    # apply migrations + seed to a scratch database and assert invariants
 npm run icons        # regenerate the PWA icon set
 
@@ -137,13 +161,13 @@ your deployment in the same one.
 cp .env.example .env.local
 ```
 
-From *Project Settings → API*, set:
+From _Project Settings → API_, set:
 
-| Variable | Where it comes from |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
-| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — server-only, never in a browser |
+| Variable                        | Where it comes from                                  |
+| ------------------------------- | ---------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Project URL                                          |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key                                  |
+| `SUPABASE_SERVICE_ROLE_KEY`     | `service_role` key — server-only, never in a browser |
 
 Then set `ALLOWED_EMAILS` to your own address, `NEXT_PUBLIC_APP_URL` to where
 the app will live, and `DEMO_MODE=false`.
@@ -196,7 +220,7 @@ policy that upserts need.
 
 ### 5. Auth redirect URLs
 
-In *Authentication → URL Configuration*:
+In _Authentication → URL Configuration_:
 
 - **Site URL**: your production origin, e.g. `https://impasto.example.com`
 - **Redirect URLs**: add every origin that will complete a magic link —
@@ -211,7 +235,7 @@ The wildcard covers Vercel preview deployments. Without a matching entry the
 link lands on an error page instead of signing you in.
 
 There is no public sign-up: an address not in `ALLOWED_EMAILS` is refused
-before any mail is sent, and the allowlist is checked *again* when the link is
+before any mail is sent, and the allowlist is checked _again_ when the link is
 used, because a magic link is a bearer token and the list may have changed in
 between.
 
@@ -221,14 +245,33 @@ sending anything.
 
 ### 6. Seed the catalog
 
-Sign in once so your user exists, find its id in *Authentication → Users*,
-then:
+Sign in once so your user exists, then find its id in _Authentication →
+Users_ and run:
+
+```bash
+npm run seed:owner -- <your-auth-user-id>
+```
+
+This reads `.env.local`, connects with the **server-only**
+`SUPABASE_SERVICE_ROLE_KEY`, and writes the bundled catalog — categories,
+ingredients, styles, oven profiles, package sizes, substitutions and all the
+recipes — attributed to that owner. It needs no `psql` and no direct database
+connection string.
+
+Re-running is safe. Shared catalog rows are matched by slug and updated in
+place; each recipe's items, steps, source and evidence are rewritten from the
+seed. A second run converges on the same state rather than duplicating it, so
+it is also how you push a change you made to `src/lib/seed/`.
+
+If you would rather use SQL directly, `supabase/seed.sql` is generated from the
+same catalog by `npm run seed` and does the same job:
 
 ```bash
 psql "$DATABASE_URL" -v owner_id="'<your-auth-user-id>'" -f supabase/seed.sql
 ```
 
-Re-running is safe: every statement upserts on a stable slug.
+**Verify:** `/ru/recipes` lists the catalog while signed in, and running the
+command a second time leaves the recipe count unchanged.
 
 ### 7. Optional AI providers
 
@@ -240,8 +283,8 @@ variable would enable each of the others.
 
 ### 8. Deploy to Vercel
 
-Import the repository. Add the same environment variables under *Settings →
-Environment Variables*, for **Production** and **Preview** separately —
+Import the repository. Add the same environment variables under _Settings →
+Environment Variables_, for **Production** and **Preview** separately —
 previews should point at their own Supabase project if you do not want them
 writing to real data.
 
@@ -250,8 +293,12 @@ policy, and `no-store` on the health endpoint. The build command and output
 are the Next.js defaults.
 
 **Verify:** `https://<your-deployment>/api/health` returns 200 and
-`"status": "ok"`. It reports which integrations are on and never a key, a
-URL or an address.
+`"status": "ok"` with `"mode": "supabase"` and `"writable": true`. It reports
+which integrations are on and never a key, a URL or an address.
+
+If it returns `"mode": "demo-readonly"`, the deployment has no Supabase
+credentials: it is serving the bundled catalog and refusing every write. That
+is a configuration state, not a crash — go back to step 2.
 
 ---
 
@@ -269,8 +316,9 @@ Run through this once, in order. Everything is verifiable — no step ends in
 - [ ] `IMPASTO_MOCK_TRANSLATION` is **not** set in production
 - [ ] `OPENFOODFACTS_USER_AGENT` has a real contact address
 - [ ] Migrations applied; `/api/health` returns `"mode": "supabase"`
+      (`"demo-readonly"` means Supabase is not connected and nothing will save)
 - [ ] Auth redirect URLs include every origin, including previews
-- [ ] Seed applied with your own `owner_id`
+- [ ] Seed applied with `npm run seed:owner -- <your-auth-user-id>`
 - [ ] Signed in once with a magic link, and a non-allowlisted address was refused
 - [ ] Created a recipe with a photo, reloaded, and it is still there
 - [ ] `/api/health` returns 200 with an empty `problems` array
@@ -310,7 +358,7 @@ npx supabase storage cp -r ss:///recipe-media ./recipe-media-backup
 psql "$DATABASE_URL" -f impasto-backup-2026-08-18.sql
 ```
 
-A restore into a *different* Supabase project needs the `owner_id` columns
+A restore into a _different_ Supabase project needs the `owner_id` columns
 rewritten to the new user's id — every owned table carries it, and RLS will
 otherwise hide rows that belong to a user that no longer exists.
 
@@ -326,11 +374,11 @@ profile and are removed by "Reset demo data".
 Every one of these is optional. Without it the relevant button explains which
 variable is missing rather than failing silently or pretending to work.
 
-| Variable | Turns on |
-| --- | --- |
-| `OPENAI_API_KEY` | Recipe extraction from text and video, package recognition from a photo, AI translation, recommendation narration. |
-| `SUPADATA_API_KEY` | Automatic YouTube transcripts. Without it the importer offers a paste box. |
-| `OPENFOODFACTS_USER_AGENT` | Nothing — Open Food Facts needs no key — but their policy asks for a contact address in the User-Agent. |
+| Variable                   | Turns on                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `OPENAI_API_KEY`           | Recipe extraction from text and video, package recognition from a photo, AI translation, recommendation narration. |
+| `SUPADATA_API_KEY`         | Automatic YouTube transcripts. Without it the importer offers a paste box.                                         |
+| `OPENFOODFACTS_USER_AGENT` | Nothing — Open Food Facts needs no key — but their policy asks for a contact address in the User-Agent.            |
 
 `OPENAI_BASE_URL` points the same code at any OpenAI-compatible endpoint.
 

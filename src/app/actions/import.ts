@@ -25,6 +25,7 @@ import { ProviderDisabledError, ProviderError } from '@/lib/providers/types'
 import { revalidatePath } from 'next/cache'
 import type { Locale } from '@/domain'
 import { getRepository } from '@/lib/data'
+import type { DisplayError } from '@/lib/data/errors'
 import { callerKey } from '@/lib/limits/caller'
 import { checkRate } from '@/lib/limits/rate'
 import { sniffImageType } from '@/lib/media/signature'
@@ -206,7 +207,6 @@ export async function importFromTextAction(input: unknown): Promise<ImportResult
   }
 }
 
-
 const photoSchema = z.object({
   bytes: z.instanceof(ArrayBuffer),
   contentType: z.string().trim().max(100),
@@ -282,9 +282,7 @@ export interface IngredientMatchView {
  * ingredient arriving in a different language resolves to the entry that
  * already exists rather than creating a duplicate.
  */
-export async function matchImportIngredientsAction(
-  names: unknown,
-): Promise<IngredientMatchView[]> {
+export async function matchImportIngredientsAction(names: unknown): Promise<IngredientMatchView[]> {
   const parsed = z.array(z.string().max(200)).max(200).safeParse(names)
   if (!parsed.success) return []
 
@@ -325,8 +323,7 @@ const approveSchema = z.object({
 })
 
 export type ApproveResult =
-  | { ok: true; slug: string; alreadyExisted: boolean }
-  | { ok: false; error: string }
+  { ok: true; slug: string; alreadyExisted: boolean } | { ok: false; error: DisplayError }
 
 /**
  * Saves an approved candidate.
@@ -347,7 +344,8 @@ export async function approveImportAction(input: unknown): Promise<ApproveResult
   if (hasBlockingIssues(issues)) {
     return {
       ok: false,
-      error: issues.find((issue) => issue.severity === 'error')?.message ?? 'The import is not valid',
+      error:
+        issues.find((issue) => issue.severity === 'error')?.message ?? 'The import is not valid',
     }
   }
 

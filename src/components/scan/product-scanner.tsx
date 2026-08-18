@@ -6,6 +6,7 @@ import { useRef, useState, useTransition } from 'react'
 import { type ScanResult, lookupBarcodeAction, recognizeImageAction } from '@/app/actions/scan'
 import { addPantryItemAction } from '@/app/actions/pantry'
 import { rememberPackageAction } from '@/app/actions/packages'
+import { type DisplayError, useErrorText } from '@/components/ui/action-error'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Label, Select } from '@/components/ui/primitives'
 import type { Unit } from '@/domain'
@@ -37,7 +38,8 @@ export function ProductScanner({
 
   const [barcode, setBarcode] = useState('')
   const [result, setResult] = useState<ScanResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<DisplayError | null>(null)
+  const errorText = useErrorText()
   const detectorSupported = useBarcodeDetectorSupported()
   const [saved, setSaved] = useState(false)
 
@@ -184,7 +186,11 @@ export function ProductScanner({
                 onChange={(event) => setBarcode(event.target.value)}
               />
               <Button onClick={() => runBarcode(barcode)} disabled={pending || !barcode}>
-                {pending ? <Loader2 aria-hidden className="animate-spin" /> : <ScanLine aria-hidden />}
+                {pending ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <ScanLine aria-hidden />
+                )}
               </Button>
             </div>
           </div>
@@ -211,12 +217,23 @@ export function ProductScanner({
             </Button>
           </div>
 
-          <p className="text-xs text-ink-faint">
-            {detectorSupported ? t('scanner.scanning') : t('scanner.usingOcr')}
+          {/*
+            Idle, not busy. This said "Reading the label..." before a photo had
+            even been chosen, which reads as a progress report for work that has
+            not started. What belongs here is what will happen when it does.
+          */}
+          <p className="text-ink-faint text-xs" role={pending ? 'status' : undefined}>
+            {pending
+              ? detectorSupported
+                ? t('scanner.scanning')
+                : t('scanner.usingOcr')
+              : detectorSupported
+                ? t('scanner.idleBarcode')
+                : t('scanner.idleOcr')}
           </p>
 
           {!visionAvailable && visionRequiredKey ? (
-            <p className="flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber">
+            <p className="bg-amber-soft text-amber flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
               <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
               {t('errors.providerDisabledHint', { key: visionRequiredKey })}
             </p>
@@ -225,8 +242,8 @@ export function ProductScanner({
       </Card>
 
       {error ? (
-        <p role="alert" className="rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong">
-          {error}
+        <p role="alert" className="bg-tomato-soft text-tomato-strong rounded-lg px-3 py-2 text-sm">
+          {errorText(error)}
         </p>
       ) : null}
 
@@ -253,26 +270,26 @@ export function ProductScanner({
             <dl className="space-y-1 text-sm">
               <div className="flex justify-between gap-3">
                 <dt className="text-ink-muted">{t('scanner.productName')}</dt>
-                <dd className="text-right font-medium text-ink">
+                <dd className="text-ink text-right font-medium">
                   {result.displayName ?? t('common.unknown')}
                 </dd>
               </div>
               {result.brand ? (
                 <div className="flex justify-between gap-3">
                   <dt className="text-ink-muted">{t('scanner.brand')}</dt>
-                  <dd className="text-right text-ink">{result.brand}</dd>
+                  <dd className="text-ink text-right">{result.brand}</dd>
                 </div>
               ) : null}
               {result.allergens.length > 0 ? (
                 <div className="flex justify-between gap-3">
                   <dt className="text-ink-muted">Allergens</dt>
-                  <dd className="text-right text-ink">{result.allergens.join(', ')}</dd>
+                  <dd className="text-ink text-right">{result.allergens.join(', ')}</dd>
                 </div>
               ) : null}
             </dl>
 
             {/* Every field stays editable: the scan is a proposal, not a fact. */}
-            <div className="grid gap-3 border-t border-rule pt-3 sm:grid-cols-3">
+            <div className="border-rule grid gap-3 border-t pt-3 sm:grid-cols-3">
               <div className="sm:col-span-3">
                 <Label htmlFor="scan-ingredient">{t('scanner.canonicalIngredient')}</Label>
                 <Select
@@ -317,16 +334,16 @@ export function ProductScanner({
                 href={result.sourceUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="text-xs text-tomato underline underline-offset-2"
+                className="text-tomato text-xs underline underline-offset-2"
               >
                 {t('recipe.openSource')}
               </a>
             ) : null}
 
-            <p className="text-xs text-ink-faint">{t('scanner.keepImageHint')}</p>
+            <p className="text-ink-faint text-xs">{t('scanner.keepImageHint')}</p>
 
             {quantity ? (
-              <label className="flex items-start gap-2 text-sm text-ink">
+              <label className="text-ink flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={rememberPackage}
@@ -335,7 +352,7 @@ export function ProductScanner({
                 />
                 <span>
                   {t('scanner.rememberPackage')}
-                  <span className="block text-xs text-ink-faint">
+                  <span className="text-ink-faint block text-xs">
                     {t('scanner.rememberPackageHint')}
                   </span>
                 </span>
@@ -353,7 +370,7 @@ export function ProductScanner({
             </div>
 
             {saved ? (
-              <p className="text-sm text-basil" role="status">
+              <p className="text-basil text-sm" role="status">
                 {t('pantry.title')} · {t('common.save')}d
               </p>
             ) : null}

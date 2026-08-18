@@ -1,6 +1,6 @@
 import { Decimal } from 'decimal.js'
 import { type Amount, isNumeric, upperBound } from './amount'
-import { RecipeCycleError, expandRecipe } from './expand'
+import { type ExpansionIssue, RecipeCycleError, expandRecipe } from './expand'
 import type { AuthenticityClass, RecipeGraph, RecipeStatus } from './model'
 import { type PantryEntry, buildShoppingList } from './shopping'
 
@@ -29,12 +29,33 @@ export interface MissingIngredient {
   optional: boolean
 }
 
+/** An ingredient with no quantity the pantry can be checked against. */
+export interface UnknownRequirement {
+  ingredientId: string
+  optional: boolean
+  /** `qualitative` covers "to taste"; `unknown` is a genuinely unstated amount. */
+  reason: 'unknown' | 'qualitative'
+}
+
 export interface Recommendation {
   recipeId: string
   /** 0..1 share of required (non-optional, numeric) ingredients fully covered. */
   coverage: number
   missing: MissingIngredient[]
   missingRequiredCount: number
+  /** Mandatory ingredients whose amount the recipe never states -- blocking. */
+  unknownRequired: UnknownRequirement[]
+  /**
+   * Quantities that cannot be checked but never block: optional unstated
+   * amounts, and mandatory "to taste" lines, which are instructions rather
+   * than measurements. Shown separately so the gap is still visible.
+   */
+  unknownOptional: UnknownRequirement[]
+  /**
+   * False when something mandatory is unknown or the recipe could not be fully
+   * expanded. `canCookNow` is never true while this is false.
+   */
+  dataComplete: boolean
   canCookNow: boolean
   score: number
   reasons: RecommendationReason[]
@@ -47,6 +68,7 @@ export type RecommendationReason =
   | { kind: 'time'; minutes: number }
   | { kind: 'oven_match' }
   | { kind: 'missing_only_optional' }
+  | { kind: 'data_incomplete' }
 
 export interface RecommendOptions {
   /** Experimental recipes are opt-in; the default set is the trustworthy three. */
@@ -72,6 +94,20 @@ const AUTHENTICITY_WEIGHT: Record<AuthenticityClass, number> = {
   user_verified: 0.75,
   adapted: 0.6,
   experimental: 0.35,
+}
+
+/**
+ * How much a recipe's own review state is worth.
+ *
+ * A verified recipe whose quantities all add up should outrank a draft that
+ * happens to look cheap only because half its amounts are missing -- which is
+ * exactly what an unweighted score would do.
+ */
+const STATUS_WEIGHT: Record<RecipeStatus, number> = {
+  verified: 1,
+  needs_review: 0.75,
+  draft: 0.55,
+  archived: 0.2,
 }
 
 /**
@@ -131,10 +167,12 @@ export function recommend(
     if (evaluation.missingRequiredCount === 0 && evaluation.missing.length > 0) {
       reasons.push({ kind: 'missing_only_optional' })
     }
+    if (!evaluation.dataComplete) reasons.push({ kind: 'data_incomplete' })
 
     const qualityScore =
-      AUTHENTICITY_WEIGHT[candidate.authenticity] * 0.6 +
-      Math.min(candidate.sourceCredibility, 1) * 0.4
+      AUTHENTICITY_WEIGHT[candidate.authenticity] * 0.4 +
+      STATUS_WEIGHT[candidate.status] * 0.25 +
+      Math.min(candidate.sourceCredibility, 1) * 0.35
 
     const timeBonus =
       candidate.totalMinutes && options.maxTotalMinutes
@@ -142,58 +180,130 @@ export function recommend(
         : 0
     const ovenBonus =
       options.ovenProfileId && candidate.ovenProfileId === options.ovenProfileId ? 0.05 : 0
+    // A recipe the app cannot finish the arithmetic for is a worse suggestion
+    // than one it can, whatever its provenance says.
+    const completenessPenalty = evaluation.dataComplete ? 0 : 0.35
 
     results.push({
       recipeId: candidate.recipeId,
       coverage: evaluation.coverage,
       missing: evaluation.missing,
       missingRequiredCount: evaluation.missingRequiredCount,
-      canCookNow: evaluation.missingRequiredCount === 0,
+      unknownRequired: evaluation.unknownRequired,
+      unknownOptional: evaluation.unknownOptional,
+      dataComplete: evaluation.dataComplete,
+      // Cookable means every mandatory ingredient is both known and covered.
+      canCookNow:
+        evaluation.dataComplete &&
+        evaluation.requiredCount > 0 &&
+        evaluation.missingRequiredCount === 0,
       // Quality is weighted above coverage on purpose.
-      score: qualityScore * 0.55 + evaluation.coverage * 0.35 + timeBonus + ovenBonus,
+      score: Math.max(
+        0,
+        qualityScore * 0.55 +
+          evaluation.coverage * 0.35 +
+          timeBonus +
+          ovenBonus -
+          completenessPenalty,
+      ),
       reasons,
     })
   }
 
   results.sort((a, b) => {
     if (a.canCookNow !== b.canCookNow) return a.canCookNow ? -1 : 1
+    // Calculable recipes come before ones whose data is too thin to check,
+    // regardless of how well-sourced the incomplete one claims to be.
+    if (a.dataComplete !== b.dataComplete) return a.dataComplete ? -1 : 1
     return b.score - a.score
   })
 
   return options.limit ? results.slice(0, options.limit) : results
 }
 
-interface CoverageResult {
+export interface CoverageResult {
+  /** 0..1 over the mandatory requirements that carry a usable number. */
   coverage: number
+  /** How many mandatory requirements the ratio was taken over. */
+  requiredCount: number
   missing: MissingIngredient[]
   missingRequiredCount: number
+  /** Mandatory amounts the recipe never states -- these block cooking. */
+  unknownRequired: UnknownRequirement[]
+  /** Uncheckable but non-blocking: optional unknowns and "to taste" lines. */
+  unknownOptional: UnknownRequirement[]
+  /** Expansion problems, e.g. a component whose yield is unknown. */
+  issues: ExpansionIssue[]
+  dataComplete: boolean
 }
 
 /**
  * Expands a recipe and checks it against the pantry.
  *
- * Only numeric, non-optional requirements count toward coverage: "salt to
- * taste" should not drag a score down, and neither should an optional garnish.
+ * Three states, deliberately kept apart. A numeric requirement is either
+ * covered or short. A *qualitative* one ("salt to taste") is not a quantity at
+ * all and never drags the score down. An *unknown* one is a gap in the recipe:
+ * it makes coverage indeterminate rather than complete, because a recipe that
+ * does not say how much oil it needs cannot honestly be reported as one you
+ * have everything for.
+ *
+ * A recipe with nothing numeric to check gets a coverage of zero, not one. The
+ * old behaviour -- an empty denominator meaning "100% covered" -- is exactly
+ * how a recipe with no usable amounts came to be offered as cookable.
  */
 export function evaluateCoverage(
   graph: RecipeGraph,
   recipeId: string,
   pantry: readonly PantryEntry[],
 ): CoverageResult {
-  const { lines } = expandRecipe(graph, recipeId, 1)
+  const { lines, issues } = expandRecipe(graph, recipeId, 1)
   const { items } = buildShoppingList(graph, lines, pantry)
 
   const missing: MissingIngredient[] = []
+  const unknownRequired: UnknownRequirement[] = []
+  const unknownOptional: UnknownRequirement[] = []
   let required = 0
   let covered = 0
 
   for (const item of items) {
-    if (!item.required || !isNumeric(item.required)) continue
+    // Lines the aggregation could not fold into a number: "to taste" is a
+    // documented instruction, an unstated amount is a hole in the recipe.
+    const unknownLines = item.separate.filter((line) => line.amount.kind === 'unknown')
+    const blocking = !item.optional && unknownLines.some((line) => !line.optional)
+
+    for (const line of unknownLines) {
+      const entry: UnknownRequirement = {
+        ingredientId: item.ingredientId,
+        optional: line.optional,
+        reason: 'unknown',
+      }
+      if (line.optional) unknownOptional.push(entry)
+      else unknownRequired.push(entry)
+    }
+
+    if (blocking) {
+      // Counted as a requirement and never as a covered one: the pantry cannot
+      // answer "do I have enough?" when the recipe never said how much.
+      required += 1
+      continue
+    }
+
+    if (!item.required || !isNumeric(item.required)) {
+      if (!item.optional && unknownLines.length === 0) {
+        // Everything about this ingredient was qualitative. It is still needed,
+        // but there is no quantity to compare against the pantry, so it neither
+        // counts toward coverage nor stands in the way of cooking.
+        unknownOptional.push({
+          ingredientId: item.ingredientId,
+          optional: false,
+          reason: 'qualitative',
+        })
+      }
+      continue
+    }
     if (!item.optional) required += 1
 
-    const short = item.toBuy
-    const isCovered = item.fullyCovered
-    if (isCovered) {
+    if (item.fullyCovered) {
       if (!item.optional) covered += 1
       continue
     }
@@ -201,15 +311,24 @@ export function evaluateCoverage(
       ingredientId: item.ingredientId,
       required: item.required,
       available: item.available,
-      short,
+      short: item.toBuy,
       optional: item.optional,
     })
   }
 
+  // An expansion issue means a whole branch of the recipe never made it into
+  // the comparison at all, so the answer cannot be called complete either.
+  const dataComplete = unknownRequired.length === 0 && issues.length === 0 && required > 0
+
   return {
-    coverage: required === 0 ? 1 : covered / required,
+    coverage: required === 0 ? 0 : covered / required,
+    requiredCount: required,
     missing,
     missingRequiredCount: missing.filter((m) => !m.optional).length,
+    unknownRequired,
+    unknownOptional,
+    issues,
+    dataComplete,
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { z } from 'zod'
 import { isDemoMode, serverEnv } from '@/lib/config/env'
+import type { DisplayError } from '@/lib/data/errors'
 import { ensureSessionId, clearSession } from '@/lib/data/demo/session'
 import { resetOverlay } from '@/lib/data/demo/overlay'
 import { readSessionId } from '@/lib/data/demo/session'
@@ -19,8 +20,7 @@ import { revalidatePath } from 'next/cache'
  */
 
 export type SignInResult =
-  | { ok: true; sent: true }
-  | { ok: false; error: string; notAllowed?: boolean }
+  { ok: true; sent: true } | { ok: false; error: DisplayError; notAllowed?: boolean }
 
 const emailSchema = z.string().trim().toLowerCase().email().max(320)
 
@@ -59,13 +59,16 @@ export async function signInAction(input: {
         shouldCreateUser: false,
       },
     })
-    if (error) return { ok: false, error: error.message }
+    // Supabase's own wording can name the project and the provider, so it is
+    // logged rather than shown.
+    if (error) {
+      console.error('[signIn]', error)
+      return { ok: false, error: { code: 'unknown' } }
+    }
     return { ok: true, sent: true }
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Could not send the sign-in link',
-    }
+    console.error('[signIn]', error)
+    return { ok: false, error: { code: 'unknown' } }
   }
 }
 

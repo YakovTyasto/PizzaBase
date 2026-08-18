@@ -24,11 +24,7 @@ export async function generateMetadata({
  * whether it is live, and gives the exact environment variable that would turn
  * a disabled one on.
  */
-export default async function SettingsPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function SettingsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 
@@ -56,7 +52,7 @@ export default async function SettingsPage({
         <SectionHeading>{t('settings.language')}</SectionHeading>
         <Card>
           <CardBody className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm text-ink-muted">{t('settings.language')}</span>
+            <span className="text-ink-muted text-sm">{t('settings.language')}</span>
             <LocaleSwitcher />
           </CardBody>
         </Card>
@@ -91,13 +87,13 @@ export default async function SettingsPage({
         <SectionHeading>{t('settings.integrations')}</SectionHeading>
         <Card>
           <CardBody>
-            <ul className="divide-y divide-rule">
+            <ul className="divide-rule divide-y">
               {providers.map(({ key, status }) => (
                 <li key={key} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink">{status.name}</p>
+                    <p className="text-ink text-sm font-medium">{status.name}</p>
                     {!status.available && status.requiredKey ? (
-                      <p className="text-xs text-ink-faint">
+                      <p className="text-ink-faint text-xs">
                         {t('settings.providerMissingKey', { key: status.requiredKey })}
                       </p>
                     ) : null}
@@ -127,6 +123,14 @@ export default async function SettingsPage({
               <DataRow label={t('settings.demoMode')}>
                 {report.demoMode ? t('common.yes') : t('common.no')}
               </DataRow>
+              {/* The one line that answers "will anything I do here survive?" */}
+              <DataRow label={t('settings.storage')}>
+                {report.storageMode === 'supabase'
+                  ? t('settings.storageSupabase')
+                  : report.storageMode === 'demo'
+                    ? t('settings.storageDemo')
+                    : t('settings.storageReadOnly')}
+              </DataRow>
               <DataRow label="Supabase">
                 {report.supabase ? t('settings.providerEnabled') : t('settings.providerDisabled')}
               </DataRow>
@@ -141,8 +145,10 @@ export default async function SettingsPage({
       </section>
 
       <section>
-        <SectionHeading>{report.demoMode ? t('settings.demoMode') : t('auth.signIn')}</SectionHeading>
-        <DemoControls demoMode={report.demoMode} />
+        <SectionHeading>
+          {report.demoMode ? t('settings.demoMode') : t('auth.signIn')}
+        </SectionHeading>
+        <DemoControls demoMode={report.demoMode} writable={report.writable} />
       </section>
 
       {/* Startup problems, which are a stronger statement than a warning: a
@@ -156,8 +162,8 @@ export default async function SettingsPage({
                 key={problem.variable}
                 className={
                   problem.severity === 'error'
-                    ? 'flex items-start gap-2 rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong'
-                    : 'flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber'
+                    ? 'bg-tomato-soft text-tomato-strong flex items-start gap-2 rounded-lg px-3 py-2 text-sm'
+                    : 'bg-amber-soft text-amber flex items-start gap-2 rounded-lg px-3 py-2 text-sm'
                 }
               >
                 <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -177,7 +183,7 @@ export default async function SettingsPage({
             {report.warnings.map((warning) => (
               <li
                 key={warning}
-                className="flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber"
+                className="bg-amber-soft text-amber flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
               >
                 <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
                 {warning}

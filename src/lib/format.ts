@@ -1,4 +1,5 @@
 import type { Decimal } from 'decimal.js'
+import type { MassRange, PercentValue } from '@/domain'
 import { type Amount, type Unit, isQualitativeUnit, preferredDisplayUnit } from '@/domain'
 import { convertAmount } from '@/domain'
 
@@ -116,12 +117,27 @@ export function formatPercent(value: Decimal, locale: string, places = 1): strin
   }).format(value.toDecimalPlaces(places).toNumber())
 }
 
+/**
+ * A baker's percentage, which may be a range.
+ *
+ * Both bounds are kept: salt stated as 25-30 g against a kilo of flour is
+ * "2,5-3", never a single averaged figure and never a zero.
+ */
+export function formatPercentValue(percent: PercentValue, locale: string, places = 1): string {
+  const min = formatPercent(percent.min, locale, places)
+  const max = formatPercent(percent.max, locale, places)
+  return min === max ? min : `${min}–${max}`
+}
+
+/** A mass that may be a range, in grams. */
+export function formatMassRange(mass: MassRange, locale: string, unit: Unit = 'g'): string {
+  const min = formatDecimal(mass.min, unit, locale)
+  const max = formatDecimal(mass.max, unit, locale)
+  return min === max ? min : `${min}–${max}`
+}
+
 /** Celsius stays canonical; Fahrenheit is a display conversion only. */
-export function formatTemperature(
-  celsius: number,
-  unit: 'c' | 'f',
-  locale: string,
-): string {
+export function formatTemperature(celsius: number, unit: 'c' | 'f', locale: string): string {
   const value = unit === 'f' ? celsius * (9 / 5) + 32 : celsius
   const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
   return `${formatted}°${unit.toUpperCase()}`

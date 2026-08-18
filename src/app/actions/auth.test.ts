@@ -84,16 +84,16 @@ describe('magic-link sign-in', () => {
   it('never redirects off-site, whatever was asked for', async () => {
     await signInAction({ email: 'owner@example.com', redirectTo: 'https://evil.test/steal' })
     const call = signInWithOtp.mock.calls[0]![0]
-    expect(call.options.emailRedirectTo).toBe(
-      'https://example.test/auth/callback?next=%2F',
-    )
+    expect(call.options.emailRedirectTo).toBe('https://example.test/auth/callback?next=%2F')
   })
 
   it('reports a provider failure rather than claiming the mail was sent', async () => {
     signInWithOtp.mockResolvedValue({ error: { message: 'rate limited' } })
+    // The provider's own wording can name the project and the auth backend, so
+    // it stays in the server log and the caller gets a code to translate.
     expect(await signInAction({ email: 'owner@example.com' })).toEqual({
       ok: false,
-      error: 'rate limited',
+      error: { code: 'unknown' },
     })
   })
 

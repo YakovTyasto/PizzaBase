@@ -149,7 +149,8 @@
     "resultCount": "{count, plural, one {# recette} other {# recettes}}",
     "create": "Nouvelle recette",
     "components": "Composants",
-    "usedBy": "Utilisé dans"
+    "usedBy": "Utilisé dans",
+    "filterCleared": "Certains filtres du lien n’existent plus et ont été effacés."
   },
   "recipe": {
     "ingredients": "Ingrédients",
@@ -193,7 +194,16 @@
     "achievedMass": "Après arrondi",
     "openSource": "Ouvrir la source",
     "importedOn": "Importé le {date}",
-    "attribution": "Attribution"
+    "attribution": "Attribution",
+    "hydrationReset": "Rétablir l’hydratation de la source",
+    "hydrationEdited": "Modifié à la main ; la source indique {source} %.",
+    "sourceBatch": "Pâte de la source",
+    "formulaIncomplete": "Aucun poids indiqué pour {names} : les pourcentages sont incomplets.",
+    "stagePreferment": "Préferment",
+    "stageFinal": "Pâte finale",
+    "totalApproximate": "Le total est approximatif : certaines masses ne sont pas indiquées.",
+    "totalWithinTolerance": "Correspond à la cible aux arrondis près (±{tolerance} g).",
+    "totalDrift": "L’arrondi laisse le total à {drift} g de la cible."
   },
   "amount": {
     "unknown": "Quantité inconnue",
@@ -289,7 +299,12 @@
     "noSubstitutionHint": "Mieux vaut l'ajouter à la liste de courses que de remplacer par un produit inadapté.",
     "empty": "Rien à proposer pour l'instant.",
     "emptyHint": "Ajoutez des produits à votre réserve, ou vérifiez d'abord une recette.",
-    "addMissingToList": "Ajouter ce qui manque à la liste"
+    "addMissingToList": "Ajouter ce qui manque à la liste",
+    "dataIncomplete": "Données de recette incomplètes",
+    "dataIncompleteHint": "Aucune quantité indiquée pour {names} : la couverture ne peut pas être calculée.",
+    "completeRecipe": "Compléter la recette",
+    "unknownOptional": "Sans quantité exacte, mais sans empêcher de cuisiner : {names}.",
+    "coverageUnknown": "Couverture inconnue"
   },
   "planner": {
     "title": "Planificateur de fermentation",
@@ -307,7 +322,9 @@
     "approximate": "Durée indicative",
     "approximateHint": "Cette recette n'a pas de modèle de correction par température. Fiez-vous aux indices sensoriels plutôt qu'à l'horloge.",
     "totalTime": "Total {duration}",
-    "noSteps": "Cette recette n'a aucune étape chronométrée."
+    "noSteps": "Cette recette n'a aucune étape chronométrée.",
+    "noFermentation": "Rien à planifier dans cette recette",
+    "noFermentationHint": "Le planificateur organise la fermentation et le repos. Ici, tout est actif, sans attente."
   },
   "cooking": {
     "title": "Cuisson",
@@ -433,7 +450,9 @@
     "cameraDenied": "L'accès à la caméra a été refusé.",
     "cameraDeniedHint": "Envoyez une photo à la place.",
     "rememberPackage": "Mémoriser ce format d’emballage",
-    "rememberPackageHint": "Il sera proposé quand une recette demande le rendement, au lieu de deviner la taille de la boîte."
+    "rememberPackageHint": "Il sera proposé quand une recette demande le rendement, au lieu de deviner la taille de la boîte.",
+    "idleBarcode": "Photographiez le code-barres : il est lu dans le navigateur.",
+    "idleOcr": "Photographiez l’étiquette : le texte est reconnu sur le serveur."
   },
   "settings": {
     "title": "Réglages",
@@ -457,7 +476,11 @@
     "demoMode": "Mode démo",
     "warnings": "À regarder",
     "recommendationRules": "Règles de recommandation",
-    "startupProblems": "Problèmes de configuration"
+    "startupProblems": "Problèmes de configuration",
+    "storage": "Stockage",
+    "storageSupabase": "Supabase — les modifications persistent",
+    "storageDemo": "Démo, sur le disque du serveur",
+    "storageReadOnly": "Démo en lecture seule"
   },
   "auth": {
     "signIn": "Se connecter",
@@ -493,7 +516,11 @@
     "componentYieldUnknown": "« {recipe} » n'a pas de rendement défini ; ses ingrédients ne peuvent pas être détaillés.",
     "componentAmountUnknown": "La quantité de « {recipe} » n'est pas définie.",
     "providerDisabled": "{provider} n'est pas configuré.",
-    "providerDisabledHint": "Ajoutez {key} à votre environnement pour l'activer."
+    "providerDisabledHint": "Ajoutez {key} à votre environnement pour l'activer.",
+    "readOnly": "Rien ne peut être enregistré : cette démo est en lecture seule.",
+    "validation": "Vérifiez les valeurs saisies.",
+    "conflict": "Les données ont changé ailleurs. Rechargez la page.",
+    "outOfRange": "Saisissez un nombre entre {min} et {max}."
   },
   "offline": {
     "title": "Vous êtes hors ligne",
@@ -611,7 +638,10 @@
     "reset": "Réinitialiser les données de démo",
     "resetHint": "Supprime toutes les recettes, plans et produits ajoutés ici et restaure le catalogue intégré. Les photos locales sont également supprimées.",
     "resetConfirm": "Réinitialiser les données de démo ? Tout ce que vous avez créé ici sera supprimé.",
-    "resetDone": "Données de démo réinitialisées."
+    "resetDone": "Données de démo réinitialisées.",
+    "readOnly": "Lecture seule",
+    "readOnlyHint": "Ce déploiement n’a pas de stockage persistant : rien n’est enregistré. Le catalogue reste consultable.",
+    "readOnlyFix": "Connectez Supabase pour que les modifications persistent."
   },
   "media": {
     "add": "Ajouter des photos",
@@ -651,7 +681,7 @@
     "empty": "Aucune expérience pour l’instant.",
     "emptyHint": "Modifiez une recette vérifiée : elle conserve une version à comparer.",
     "needTwo": "Il faut au moins deux versions",
-    "needTwoHint": "Cette recette n’a encore qu’une version.",
+    "needTwoHint": "Aucune version enregistrée de « {recipe} ». Modifiez et enregistrez la recette pour créer un instantané à comparer.",
     "slot": "Version {number}",
     "addVersion": "Ajouter une version",
     "whatChanged": "Ce qui a changé",
@@ -680,7 +710,11 @@
       "temperature": "Température",
       "yield": "Rendement"
     },
-    "savedConfirm": "Expérience enregistrée."
+    "savedConfirm": "Expérience enregistrée.",
+    "howItWorks": "Une expérience compare la recette actuelle à un instantané enregistré d’une version antérieure. Un instantané est créé lorsque vous modifiez et enregistrez une recette.",
+    "editToSnapshot": "Ouvrir la recette et la modifier",
+    "readOnlyHint": "Impossible de créer une version : ce déploiement est en lecture seule. Connectez Supabase pour enregistrer des instantanés.",
+    "snapshotCount": "{count, plural, one {# version} other {# versions}}"
   },
   "notify": {
     "why": "Les notifications préviennent quand un minuteur se termine ou qu’une étape de fermentation arrive.",

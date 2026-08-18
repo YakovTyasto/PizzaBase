@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getRepository } from '@/lib/data'
+import type { ActionError } from '@/lib/data/errors'
+import { toActionError } from '@/lib/data/failure'
 import type { PlanEntry } from '@/lib/data/types'
 
 /**
@@ -34,18 +36,24 @@ const planSchema = z.object({
   entries: z.array(entrySchema).max(50),
 })
 
-export type ActionResult = { ok: true } | { ok: false; error: string }
+/**
+ * What every mutation answers.
+ *
+ * The failure side carries a code, never a message from the server: see
+ * `lib/data/errors.ts` for why.
+ */
+export type ActionResult = { ok: true } | { ok: false; error: ActionError }
 
 export async function savePlanAction(input: unknown): Promise<ActionResult> {
   const parsed = planSchema.safeParse(input)
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid plan' }
+    return { ok: false, error: { code: 'validation' } }
   }
 
   try {
     await getRepository().savePlan(parsed.data)
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Could not save the plan' }
+    return { ok: false, error: toActionError(error, 'savePlan') }
   }
 
   revalidatePath('/', 'layout')
@@ -54,7 +62,7 @@ export async function savePlanAction(input: unknown): Promise<ActionResult> {
 
 export async function addToPlanAction(recipeId: string): Promise<ActionResult> {
   const id = z.string().min(1).max(200).safeParse(recipeId)
-  if (!id.success) return { ok: false, error: 'Invalid recipe' }
+  if (!id.success) return { ok: false, error: { code: 'validation' } }
 
   const repository = getRepository()
   const plan = await repository.getPlan()
@@ -64,9 +72,7 @@ export async function addToPlanAction(recipeId: string): Promise<ActionResult> {
   const existing = plan.entries.find((entry) => entry.recipeId === id.data)
   const entries: PlanEntry[] = existing
     ? plan.entries.map((entry) =>
-        entry.recipeId === id.data
-          ? { ...entry, count: Math.min(99, entry.count + 1) }
-          : entry,
+        entry.recipeId === id.data ? { ...entry, count: Math.min(99, entry.count + 1) } : entry,
       )
     : [
         ...plan.entries,

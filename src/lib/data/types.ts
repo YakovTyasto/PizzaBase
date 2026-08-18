@@ -270,6 +270,12 @@ export interface RecipeFilter {
  */
 export interface Repository {
   readonly kind: 'demo' | 'supabase'
+  /**
+   * False when this backend refuses every mutation. Screens read it to disable
+   * their controls up front, rather than letting the user submit a change that
+   * cannot land and only then showing an error.
+   */
+  readonly writable: boolean
 
   listRecipes(locale: Locale, filter?: RecipeFilter): Promise<RecipeSummary[]>
   getRecipe(locale: Locale, slug: string): Promise<RecipeDetail | null>

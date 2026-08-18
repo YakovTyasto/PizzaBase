@@ -18,6 +18,8 @@
 const STORAGE_KEY = 'impasto:mutation-queue'
 const MAX_ENTRIES = 50
 
+import type { DisplayError } from '@/lib/data/errors'
+
 export type QueueKind = 'recipe-draft' | 'cook-session'
 
 export type QueueStatus = 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict'
@@ -31,7 +33,8 @@ export interface QueueEntry {
   createdAt: number
   attempts: number
   status: QueueStatus
-  error: string | null
+  /** Why the last attempt failed, in the form a screen can render safely. */
+  error: DisplayError | null
   /** Set when the server reported a newer version than the one we started from. */
   serverVersion: string | null
 }
@@ -97,11 +100,7 @@ export function pendingCount(): number {
   return read().filter((entry) => entry.status === 'pending' || entry.status === 'failed').length
 }
 
-export function enqueue(
-  kind: QueueKind,
-  idempotencyKey: string,
-  payload: unknown,
-): QueueEntry {
+export function enqueue(kind: QueueKind, idempotencyKey: string, payload: unknown): QueueEntry {
   // A copy: `read` returns the cached snapshot, and the shared empty one in
   // particular must never be mutated in place.
   const entries = [...read()]
@@ -148,7 +147,7 @@ type FlushHandler = (
   /* Passed to the server so a replay of a write it already applied is
      recognised rather than duplicated. */
   idempotencyKey: string,
-) => Promise<{ ok: boolean; error?: string; conflict?: boolean }>
+) => Promise<{ ok: boolean; error?: DisplayError; conflict?: boolean }>
 
 export interface FlushHandlers {
   'recipe-draft': FlushHandler
@@ -238,10 +237,10 @@ async function replay(handlers: FlushHandlers): Promise<{
         failed += 1
       }
     } catch (error) {
-      updateEntry(entry.id, {
-        status: 'failed',
-        error: error instanceof Error ? error.message : 'Sync failed',
-      })
+      // A replay that threw client-side. The reason goes to the console; the
+      // entry carries a code, because its text ends up on the screen.
+      console.error('[sync]', error)
+      updateEntry(entry.id, { status: 'failed', error: { code: 'unknown' } })
       failed += 1
     }
   }

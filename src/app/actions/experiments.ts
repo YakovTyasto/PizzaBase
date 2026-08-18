@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getRepository } from '@/lib/data'
+import type { ActionError } from '@/lib/data/errors'
+import { toActionError } from '@/lib/data/failure'
 
 /**
  * Experiments: two or more versions, what changed between them, and which one
@@ -21,15 +23,12 @@ const saveSchema = z.object({
   winningVersionId: z.string().trim().max(200).nullable().default(null),
 })
 
-export type SaveExperimentResult = { ok: true; id: string } | { ok: false; error: string }
+export type SaveExperimentResult = { ok: true; id: string } | { ok: false; error: ActionError }
 
 export async function saveExperimentAction(input: unknown): Promise<SaveExperimentResult> {
   const parsed = saveSchema.safeParse(input)
   if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues[0]?.message ?? 'Choose at least two versions to compare',
-    }
+    return { ok: false, error: { code: 'validation' } }
   }
 
   // A winner has to be one of the versions being compared, or the record would
@@ -38,7 +37,7 @@ export async function saveExperimentAction(input: unknown): Promise<SaveExperime
     parsed.data.winningVersionId &&
     !parsed.data.versionIds.includes(parsed.data.winningVersionId)
   ) {
-    return { ok: false, error: 'The winning version is not one of the compared versions' }
+    return { ok: false, error: { code: 'validation' } }
   }
 
   try {
@@ -46,10 +45,7 @@ export async function saveExperimentAction(input: unknown): Promise<SaveExperime
     revalidatePath('/', 'layout')
     return { ok: true, id: result.id }
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'The experiment could not be saved',
-    }
+    return { ok: false, error: toActionError(error, 'saveExperiment') }
   }
 }
 

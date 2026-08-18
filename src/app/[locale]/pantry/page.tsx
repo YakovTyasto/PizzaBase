@@ -15,11 +15,7 @@ export async function generateMetadata({
   return { title: t('title') }
 }
 
-export default async function PantryPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
+export default async function PantryPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   setRequestLocale(locale)
 
@@ -35,6 +31,7 @@ export default async function PantryPage({
     <div className="space-y-5">
       <h1 className="font-display text-2xl font-semibold">{t('pantry.title')}</h1>
       <PantryManager
+        writable={repository.writable}
         items={pantry.map((item) => ({
           id: item.id,
           ingredientId: item.ingredientId,
