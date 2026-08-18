@@ -21,7 +21,8 @@
     "review": "À vérifier",
     "versions": "Versions",
     "signIn": "Connexion",
-    "newRecipe": "Nouvelle recette"
+    "newRecipe": "Nouvelle recette",
+    "experiments": "Expériences"
   },
   "common": {
     "save": "Enregistrer",
@@ -52,7 +53,8 @@
     "offline": "Hors ligne",
     "online": "De nouveau en ligne",
     "showMore": "Voir plus",
-    "showLess": "Voir moins"
+    "showLess": "Voir moins",
+    "apply": "Appliquer"
   },
   "units": {
     "mg": "mg",
@@ -639,5 +641,42 @@
     "refusedHint": "Les chiffres ont changé ({detail}). Cette traduction ne peut pas être appliquée.",
     "nothing": "Tous les champs choisis sont déjà traduits.",
     "manualFallback": "Vous pouvez saisir la traduction à la main dans les onglets de langue."
+  },
+  "experiments": {
+    "title": "Expériences",
+    "hint": "Placez deux versions côte à côte et voyez ce qui a bougé.",
+    "empty": "Aucune expérience pour l’instant.",
+    "emptyHint": "Modifiez une recette vérifiée : elle conserve une version à comparer.",
+    "needTwo": "Il faut au moins deux versions",
+    "needTwoHint": "Cette recette n’a encore qu’une version.",
+    "slot": "Version {number}",
+    "addVersion": "Ajouter une version",
+    "whatChanged": "Ce qui a changé",
+    "identical": "Ces versions coïncident sur tous les paramètres.",
+    "showUnchanged": "Afficher les paramètres inchangés ({count})",
+    "parameter": "Paramètre",
+    "changed": "{count, plural, =0 {inchangé} one {# changement} other {# changements}}",
+    "name": "Nom de l’expérience",
+    "namePlaceholder": "Par exemple : plus d’hydratation",
+    "hypothesis": "Hypothèse",
+    "conclusion": "Conclusion",
+    "winner": "Version gagnante",
+    "noWinner": "Pas encore décidé",
+    "save": "Enregistrer l’expérience",
+    "saved": "Expériences enregistrées",
+    "hasWinner": "A un gagnant",
+    "promote": "Faire de la gagnante la version principale",
+    "param": {
+      "hydration": "Hydratation",
+      "salt": "Sel",
+      "yeast": "Levure",
+      "preferment": "Préferment",
+      "flour": "Farine totale",
+      "fermentation": "Fermentation",
+      "ballWeight": "Poids du pâton",
+      "temperature": "Température",
+      "yield": "Rendement"
+    },
+    "savedConfirm": "Expérience enregistrée."
   }
 }

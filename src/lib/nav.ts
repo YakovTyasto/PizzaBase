@@ -4,6 +4,7 @@ import {
   CalendarClock,
   ChefHat,
   Download,
+  FlaskConical,
   History,
   Home,
   Refrigerator,
@@ -36,6 +37,7 @@ export const secondaryNav: NavItem[] = [
   { href: '/recommendations', labelKey: 'recommendations', icon: Sparkles },
   { href: '/scan', labelKey: 'scanner', icon: ScanLine },
   { href: '/history', labelKey: 'history', icon: History },
+  { href: '/experiments', labelKey: 'experiments', icon: FlaskConical },
   { href: '/settings', labelKey: 'settings', icon: Settings },
 ]
 

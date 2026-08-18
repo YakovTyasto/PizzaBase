@@ -21,7 +21,8 @@
     "review": "Needs review",
     "versions": "Versions",
     "signIn": "Sign in",
-    "newRecipe": "New recipe"
+    "newRecipe": "New recipe",
+    "experiments": "Experiments"
   },
   "common": {
     "save": "Save",
@@ -52,7 +53,8 @@
     "offline": "Offline",
     "online": "Back online",
     "showMore": "Show more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "apply": "Apply"
   },
   "units": {
     "mg": "mg",
@@ -639,5 +641,42 @@
     "refusedHint": "The figures changed ({detail}). This translation cannot be applied.",
     "nothing": "Every selected field is already translated.",
     "manualFallback": "You can type the translation by hand on the language tabs."
+  },
+  "experiments": {
+    "title": "Experiments",
+    "hint": "Put two versions side by side and see exactly what moved.",
+    "empty": "No experiments yet.",
+    "emptyHint": "Change a verified recipe and it keeps a version you can compare against.",
+    "needTwo": "Two versions are needed",
+    "needTwoHint": "This recipe only has one version so far.",
+    "slot": "Version {number}",
+    "addVersion": "Add a version",
+    "whatChanged": "What changed",
+    "identical": "These versions match on every parameter.",
+    "showUnchanged": "Show unchanged parameters ({count})",
+    "parameter": "Parameter",
+    "changed": "{count, plural, =0 {unchanged} one {# change} other {# changes}}",
+    "name": "Experiment name",
+    "namePlaceholder": "For example: more hydration",
+    "hypothesis": "Hypothesis",
+    "conclusion": "Conclusion",
+    "winner": "Winning version",
+    "noWinner": "Not decided yet",
+    "save": "Save the experiment",
+    "saved": "Saved experiments",
+    "hasWinner": "Has a winner",
+    "promote": "Make the winner the main version",
+    "param": {
+      "hydration": "Hydration",
+      "salt": "Salt",
+      "yeast": "Yeast",
+      "preferment": "Preferment",
+      "flour": "Total flour",
+      "fermentation": "Fermentation",
+      "ballWeight": "Ball weight",
+      "temperature": "Temperature",
+      "yield": "Yield"
+    },
+    "savedConfirm": "Experiment saved."
   }
 }
