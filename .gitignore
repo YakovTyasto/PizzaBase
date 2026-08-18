@@ -39,6 +39,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Supabase CLI link state: which project this checkout is pointed at, and a
+# cached access token. Local to one machine, and not something to share.
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

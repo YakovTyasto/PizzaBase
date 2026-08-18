@@ -92,8 +92,7 @@ export class SupabaseRepository implements Repository {
          styles (id, style_translations (locale, name)),
          oven_profiles (id, oven_profile_translations (locale, name)),
          recipe_media (id, storage_path, external_url, sort_order, is_cover,
-                       recipe_media_translations (locale, alt_text)),
-         field_evidence_count:field_evidence (count)`,
+                       recipe_media_translations (locale, alt_text))`,
       )
       .neq('status', 'archived')
 
@@ -106,7 +105,11 @@ export class SupabaseRepository implements Repository {
     const { data, error } = await query
     if (error) throw error
 
-    const summaries = (data ?? []).map((row) => this.toSummary(row as never, locale))
+    const rows = data ?? []
+    const flags = await this.reviewFlags(rows.map((row) => (row as { id: string }).id))
+    const summaries = rows.map((row) =>
+      this.toSummary(row as never, locale, flags.get((row as { id: string }).id)),
+    )
 
     // Text search runs in memory so it can span all three locales at once;
     // a personal library is small enough that this stays instant.
@@ -120,7 +123,78 @@ export class SupabaseRepository implements Repository {
     )
   }
 
-  private toSummary(row: Record<string, never>, locale: Locale): RecipeSummary {
+  /**
+   * How many questions each recipe still has open, and whether any is a conflict.
+   *
+   * Read with its own queries rather than embedded in the recipe select, because
+   * `field_evidence` is *polymorphic*: it points at a recipe, a recipe item or a
+   * recipe step through `entity_type` + `entity_id`, and carries no foreign key
+   * to any of them. PostgREST resolves an embed through a foreign key, so asking
+   * it for `recipes -> field_evidence` is asking for a relationship the schema
+   * deliberately does not have -- which is exactly the PGRST200 that took every
+   * page down. The detail query has always read this table the same way.
+   *
+   * Two round trips for a whole page, not one per recipe: the item rows are
+   * fetched once for the set, and they serve double duty, since an item with no
+   * stated amount is itself an open question.
+   */
+  private async reviewFlags(
+    recipeIds: string[],
+  ): Promise<Map<string, { openQuestions: number; hasConflict: boolean }>> {
+    const flags = new Map<string, { openQuestions: number; hasConflict: boolean }>()
+    if (recipeIds.length === 0) return flags
+    for (const id of recipeIds) flags.set(id, { openQuestions: 0, hasConflict: false })
+
+    const supabase = await createClient()
+
+    // RLS scopes both reads to the caller's own rows, so this can never count
+    // another owner's evidence against your recipe.
+    const { data: itemRows } = await supabase
+      .from('recipe_items')
+      .select('id, recipe_id, amount, unit')
+      .in('recipe_id', recipeIds)
+
+    const items = (itemRows ?? []) as {
+      id: string
+      recipe_id: string
+      amount: string | null
+      unit: string | null
+    }[]
+
+    // Which recipe an evidence row belongs to, whether it is attached to the
+    // recipe itself or to one of its items.
+    const recipeOf = new Map<string, string>(recipeIds.map((id) => [id, id]))
+    for (const item of items) {
+      recipeOf.set(item.id, item.recipe_id)
+      // A line with neither a number nor a unit is an honest "unknown", and
+      // counts as a question the owner has still to answer.
+      if (item.amount === null && item.unit === null) {
+        const flag = flags.get(item.recipe_id)
+        if (flag) flag.openQuestions += 1
+      }
+    }
+
+    const { data: evidenceRows } = await supabase
+      .from('field_evidence')
+      .select('entity_id, review_state')
+      .in('entity_id', [...recipeOf.keys()])
+      .in('review_state', ['needs_review', 'conflict'])
+
+    for (const raw of (evidenceRows ?? []) as { entity_id: string; review_state: string }[]) {
+      const flag = flags.get(recipeOf.get(raw.entity_id) ?? '')
+      if (!flag) continue
+      flag.openQuestions += 1
+      if (raw.review_state === 'conflict') flag.hasConflict = true
+    }
+
+    return flags
+  }
+
+  private toSummary(
+    row: Record<string, never>,
+    locale: Locale,
+    flags?: { openQuestions: number; hasConflict: boolean },
+  ): RecipeSummary {
     const r = row as unknown as {
       id: string
       slug: string
@@ -200,8 +274,8 @@ export class SupabaseRepository implements Repository {
             attribution: source.attribution,
           }
         : null,
-      openQuestions: 0,
-      hasConflict: false,
+      openQuestions: flags?.openQuestions ?? 0,
+      hasConflict: flags?.hasConflict ?? false,
     }
   }
 
@@ -221,7 +295,7 @@ export class SupabaseRepository implements Repository {
          oven_profiles (id, oven_profile_translations (locale, name)),
          recipe_media (id, storage_path, external_url, sort_order, is_cover,
                        recipe_media_translations (locale, alt_text)),
-         recipe_items (
+         recipe_items!recipe_items_recipe_id_fkey (
            id, ingredient_id, component_recipe_id, amount, amount_max, unit,
            optional, item_group, sort_order, item_key,
            ingredients (id, slug, ingredient_translations (locale, name)),
@@ -469,7 +543,7 @@ export class SupabaseRepository implements Repository {
       supabase.from('recipes').select(
         `id, slug, type, status, base_yield, yield_unit, base_diameter_mm, base_shape,
            base_tray_width_mm, base_tray_height_mm, base_ball_weight_g,
-           recipe_items (id, ingredient_id, component_recipe_id, amount, amount_max,
+           recipe_items!recipe_items_recipe_id_fkey (id, ingredient_id, component_recipe_id, amount, amount_max,
                          unit, optional, item_group, sort_order)`,
       ),
       supabase
@@ -1197,7 +1271,7 @@ export class SupabaseRepository implements Repository {
       .select(
         `slug, origin_locale,
          recipe_translations (locale, name, summary, notes),
-         recipe_items (item_key, ingredient_id, component_recipe_id, amount, amount_max,
+         recipe_items!recipe_items_recipe_id_fkey (item_key, ingredient_id, component_recipe_id, amount, amount_max,
                        unit, optional, item_group, sort_order,
                        ingredients (slug), component:recipes!recipe_items_component_recipe_id_fkey (slug)),
          recipe_steps (step_key, sort_order, phase, active_minutes, wait_min_minutes,
