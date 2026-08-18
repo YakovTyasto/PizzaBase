@@ -456,7 +456,8 @@
     "providerMissingKey": "Set {key} to enable this.",
     "demoMode": "Demo mode",
     "warnings": "Things to look at",
-    "recommendationRules": "Recommendation rules"
+    "recommendationRules": "Recommendation rules",
+    "startupProblems": "Configuration problems"
   },
   "auth": {
     "signIn": "Sign in",

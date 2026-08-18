@@ -456,7 +456,8 @@
     "providerMissingKey": "Définissez {key} pour l'activer.",
     "demoMode": "Mode démo",
     "warnings": "À regarder",
-    "recommendationRules": "Règles de recommandation"
+    "recommendationRules": "Règles de recommandation",
+    "startupProblems": "Problèmes de configuration"
   },
   "auth": {
     "signIn": "Se connecter",

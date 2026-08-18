@@ -40,6 +40,10 @@ const serverSchema = z.object({
   SUPADATA_API_KEY: optionalString,
   OPENFOODFACTS_USER_AGENT: optionalString,
   DEMO_MODE: optionalString,
+  IMPASTO_MOCK_TRANSLATION: optionalString,
+  VAPID_PUBLIC_KEY: optionalString,
+  VAPID_PRIVATE_KEY: optionalString,
+  VAPID_SUBJECT: optionalString,
 })
 
 export class ConfigError extends Error {
@@ -143,6 +147,87 @@ export function serverEnv(): ServerEnv {
 /** Reset between tests. */
 export function resetServerEnvCache(): void {
   cachedServerEnv = null
+}
+
+/**
+ * The checks that must pass before a deployment is allowed to serve.
+ *
+ * Distinct from `configReport`, which describes what is switched on. This
+ * answers a narrower question -- is this configuration *coherent* -- and it is
+ * the one worth failing a startup over. A missing OpenAI key is a feature that
+ * is off; a Supabase URL with no key, or a production deployment that would
+ * silently serve the demo seed, is a mistake.
+ */
+export interface StartupProblem {
+  variable: string
+  message: string
+  severity: 'error' | 'warning'
+}
+
+export function validateStartup(): StartupProblem[] {
+  const env = serverEnv()
+  const problems: StartupProblem[] = []
+
+  const halfConfigured =
+    Boolean(env.supabaseUrl) !== Boolean(env.supabaseAnonKey)
+  if (halfConfigured) {
+    problems.push({
+      variable: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      message: 'Set both or neither. One without the other falls back to demo mode silently.',
+      severity: 'error',
+    })
+  }
+
+  if (!env.demoMode && env.allowedEmails.length === 0) {
+    problems.push({
+      variable: 'ALLOWED_EMAILS',
+      message: 'Supabase is configured but nobody is allowed to sign in.',
+      severity: 'error',
+    })
+  }
+
+  if (process.env.NODE_ENV === 'production' && env.demoMode) {
+    problems.push({
+      variable: 'DEMO_MODE',
+      message:
+        'This deployment serves the bundled seed and stores changes on the server’s disk. ' +
+        'Set Supabase credentials and DEMO_MODE=false for a real deployment.',
+      severity: 'warning',
+    })
+  }
+
+  // Only when there are magic links to send. A demo deployment has no email
+  // at all, so calling this an error there would report a healthy site as
+  // broken -- and a health check that cries wolf gets ignored.
+  if (process.env.NODE_ENV === 'production' && !env.demoMode && !publicEnv.NEXT_PUBLIC_APP_URL) {
+    problems.push({
+      variable: 'NEXT_PUBLIC_APP_URL',
+      message: 'Magic-link emails will point at localhost without it.',
+      severity: 'error',
+    })
+  }
+
+  if (process.env.IMPASTO_MOCK_TRANSLATION === 'true' && !env.demoMode) {
+    problems.push({
+      variable: 'IMPASTO_MOCK_TRANSLATION',
+      message: 'The translation mock is a test harness and must not be set outside demo mode.',
+      severity: 'error',
+    })
+  }
+
+  // Their usage policy asks for a way to reach whoever is making the requests.
+  // The default carries none, and the one in .env.example is a placeholder.
+  const agent = env.openFoodFactsUserAgent
+  const hasContact = /@|https?:\/\//.test(agent) && !agent.includes('example.com')
+  if (!hasContact) {
+    problems.push({
+      variable: 'OPENFOODFACTS_USER_AGENT',
+      message: 'Open Food Facts asks for a real contact address in the User-Agent.',
+      severity: 'warning',
+    })
+  }
+
+  return problems
 }
 
 export interface ConfigReport {

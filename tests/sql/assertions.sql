@@ -12,6 +12,7 @@ declare
   failures text[] := '{}';
   n integer;
   ok boolean;
+  v_locale text;
 begin
   -- ---------------------------------------------------------------------
   -- Every owner-scoped table must have RLS enabled. A new table added
@@ -187,6 +188,48 @@ begin
   end if;
 
   -- ---------------------------------------------------------------------
+  -- ---------------------------------------------------------------------
+  -- Storage: private buckets, owner-scoped policies, decodable types only.
+  -- ---------------------------------------------------------------------
+  select count(*) into n
+  from storage.buckets
+  where id in ('recipe-media', 'scan-uploads') and public;
+  if n <> 0 then failures := failures || 'a media bucket is public'; end if;
+
+  select count(*) into n from storage.buckets where id in ('recipe-media', 'scan-uploads');
+  if n <> 2 then failures := failures || 'a media bucket is missing'; end if;
+
+  -- Every operation an owner performs needs its own policy; without UPDATE an
+  -- upsert fails with something that reads like a bug in the app.
+  for v_locale in select unnest(array['select', 'insert', 'update', 'delete']) loop
+    select count(*) into n
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and cmd = upper(v_locale)
+      -- An INSERT policy has no USING clause, so qual is null there and
+      -- concatenating without coalescing both would silently match nothing.
+      and coalesce(qual, '') || coalesce(with_check, '') like '%recipe-media%';
+    if n < 1 then
+      failures := failures || format('no %s policy on recipe-media objects', v_locale);
+    end if;
+  end loop;
+
+  select count(*) into n
+  from storage.buckets
+  where id = 'recipe-media'
+    and (allowed_mime_types @> array['image/heic'] or allowed_mime_types @> array['image/avif']);
+  if n <> 0 then
+    failures := failures || 'the bucket accepts a format the app cannot decode';
+  end if;
+
+  -- One cover per recipe is a schema fact, not a convention every caller has
+  -- to remember.
+  select count(*) into n
+  from pg_indexes
+  where tablename = 'recipe_media' and indexname = 'recipe_media_one_cover_idx';
+  if n <> 1 then failures := failures || 'recipes can have two covers'; end if;
+
   if array_length(failures, 1) is null then
     raise notice '    all schema invariants hold';
   else

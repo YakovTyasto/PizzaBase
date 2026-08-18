@@ -456,7 +456,8 @@
     "providerMissingKey": "Задайте {key}, чтобы включить.",
     "demoMode": "Демо-режим",
     "warnings": "На что обратить внимание",
-    "recommendationRules": "Правила рекомендаций"
+    "recommendationRules": "Правила рекомендаций",
+    "startupProblems": "Проблемы конфигурации"
   },
   "auth": {
     "signIn": "Войти",

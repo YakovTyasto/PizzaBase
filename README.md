@@ -8,9 +8,18 @@ kitchen, and is careful never to invent a number nobody actually stated.
 Russian, English and French throughout. Installable as a PWA. Works offline
 for reading recipes and for the cooking session you are in the middle of.
 
+There are two ways in, and you can stop after the first:
+
+1. **[Demo mode](#route-1-run-it-in-two-minutes-with-no-keys)** — no account,
+   no database, no API keys. A working app in two minutes, including writing
+   your own recipes with photos.
+2. **[A real deployment](#route-2-connecting-a-real-supabase-project)** —
+   Supabase for the database, private photo storage and sign-in; optional AI
+   providers; Vercel. Step by step, each step verifiable.
+
 ---
 
-## Run it in two minutes
+## Route 1: run it in two minutes, with no keys
 
 No accounts, no database, no API keys.
 
@@ -61,7 +70,15 @@ Nothing below needs an account, a database or an API key:
    gives you one recipe, not two.
 5. Mark a recipe verified, change a quantity, then open its **Versions** tab to
    compare what changed and restore the earlier one if you prefer it.
-6. Answer something on `/ru/review`, then reload the browser. It is all still
+6. Attach a photo on the **Photos** tab, or import a recipe from one at
+   `/ru/import` → Фото. Both work with no key: the image is compressed and
+   stripped of metadata in your browser, and a fixture stands in for the
+   vision provider.
+7. Cook something from `/ru/recipes/.../cook`, walk to the last step, and
+   record how it went — it lands in `/ru/history` against the exact version
+   you cooked.
+8. Compare two versions at `/ru/experiments`.
+9. Answer something on `/ru/review`, then reload the browser. It is all still
    there.
 
 ---
@@ -82,6 +99,8 @@ npm run check        # typecheck + lint + unit tests
 npm run seed         # regenerate supabase/seed.sql from the TypeScript catalog
 npm run db:verify    # apply migrations + seed to a scratch database and assert invariants
 npm run icons        # regenerate the PWA icon set
+
+curl localhost:3000/api/health   # configuration health; 503 when incoherent
 ```
 
 ### Running the e2e suite
@@ -98,54 +117,207 @@ at it instead: `CHROMIUM_PATH=/path/to/chromium npm run test:e2e`.
 
 ---
 
-## Connecting a real database
+## Route 2: connecting a real Supabase project
 
 Demo mode is genuinely usable and it persists, but it is tied to one browser
-and one machine's disk. To keep recipes properly, with an account and backups:
+and one machine's disk. This is the path to an account, a real database,
+private photo storage and backups.
 
-**1. Create a Supabase project** at <https://supabase.com/dashboard>.
+Work through it in order. Each step is independently verifiable, so you find
+out at the step that broke rather than at the end.
 
-**2. Copy the environment file.**
+### 1. Create the project
+
+Create a project at <https://supabase.com/dashboard>. Note the region; put
+your deployment in the same one.
+
+### 2. Fill in the environment
 
 ```bash
 cp .env.example .env.local
 ```
 
-Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from
-*Project Settings → API*, plus `SUPABASE_SERVICE_ROLE_KEY` from the same page.
-Remove or set `DEMO_MODE=false`.
+From *Project Settings → API*, set:
 
-**3. Apply the migrations.** Either paste each file from
-`supabase/migrations/` into the Supabase SQL editor in filename order, or use
-the CLI:
+| Variable | Where it comes from |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — server-only, never in a browser |
+
+Then set `ALLOWED_EMAILS` to your own address, `NEXT_PUBLIC_APP_URL` to where
+the app will live, and `DEMO_MODE=false`.
+
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` must be set
+together. One without the other silently falls back to demo mode, which means
+a real deployment quietly serving bundled fixtures — so startup refuses that
+combination rather than letting you discover it later.
+
+**Verify:** `npm run dev` prints no `[impasto] ERROR` lines, and
+<http://localhost:3000/api/health> returns `"status": "ok"` with
+`"mode": "supabase"`.
+
+### 3. Apply the migrations
+
+Either paste each file from `supabase/migrations/` into the SQL editor in
+filename order, or use the CLI:
 
 ```bash
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-**4. Allow yourself in.** There is no public sign-up. Put your address in
-`ALLOWED_EMAILS`:
+This creates the schema, Row Level Security on every table, the two private
+storage buckets and their owner-scoped policies, and the `save_recipe`
+function that writes a whole recipe in one transaction.
+
+**Verify:** run the same checks the CI does against a scratch PostgreSQL:
 
 ```bash
-ALLOWED_EMAILS=you@example.com
+npm run db:verify
 ```
 
-**5. Seed the catalog.** Create your user first (sign in once), find its id in
-*Authentication → Users*, then:
+It applies every migration to an empty database, seeds it twice to prove the
+seed is idempotent, asserts the RLS and storage invariants, and exercises
+`save_recipe` for atomicity.
+
+### 4. Storage
+
+The migrations create both buckets as **private**, capped at 2 MB, and
+restricted to JPEG, PNG and WebP — the three formats the app can actually
+decode. Objects are namespaced by owner id (`<uid>/<file>.jpg`) and the
+policies key on that folder, so one owner can never read or overwrite
+another's file. Pages mint short-lived signed URLs for exactly the photos
+they render.
+
+Nothing further to configure. If you see uploads failing with a policy
+violation, check that migration `20260817000400` applied — it adds the UPDATE
+policy that upserts need.
+
+### 5. Auth redirect URLs
+
+In *Authentication → URL Configuration*:
+
+- **Site URL**: your production origin, e.g. `https://impasto.example.com`
+- **Redirect URLs**: add every origin that will complete a magic link —
+
+  ```
+  http://localhost:3000/auth/callback
+  https://impasto.example.com/auth/callback
+  https://*-yourname.vercel.app/auth/callback
+  ```
+
+The wildcard covers Vercel preview deployments. Without a matching entry the
+link lands on an error page instead of signing you in.
+
+There is no public sign-up: an address not in `ALLOWED_EMAILS` is refused
+before any mail is sent, and the allowlist is checked *again* when the link is
+used, because a magic link is a bearer token and the list may have changed in
+between.
+
+**Verify:** open `/login`, enter your allowed address, and follow the link.
+Then try an address that is not on the list — it should be refused without
+sending anything.
+
+### 6. Seed the catalog
+
+Sign in once so your user exists, find its id in *Authentication → Users*,
+then:
 
 ```bash
 psql "$DATABASE_URL" -v owner_id="'<your-auth-user-id>'" -f supabase/seed.sql
 ```
 
-Re-running this is safe: every statement upserts on a stable slug.
+Re-running is safe: every statement upserts on a stable slug.
 
-### Deploying to Vercel
+### 7. Optional AI providers
 
-Import the repository, then add the same environment variables under *Settings
-→ Environment Variables*. Set `NEXT_PUBLIC_APP_URL` to your deployed URL.
-Nothing else needs configuring — the build command and output are the Next.js
-defaults.
+Add these one at a time; each is independently useful and independently off.
+See the table under [Optional integrations](#optional-integrations).
+
+**Verify:** `/settings` lists exactly which integrations are live and which
+variable would enable each of the others.
+
+### 8. Deploy to Vercel
+
+Import the repository. Add the same environment variables under *Settings →
+Environment Variables*, for **Production** and **Preview** separately —
+previews should point at their own Supabase project if you do not want them
+writing to real data.
+
+`vercel.json` already sets the security headers, the service-worker cache
+policy, and `no-store` on the health endpoint. The build command and output
+are the Next.js defaults.
+
+**Verify:** `https://<your-deployment>/api/health` returns 200 and
+`"status": "ok"`. It reports which integrations are on and never a key, a
+URL or an address.
+
+---
+
+## First-deployment checklist
+
+Run through this once, in order. Everything is verifiable — no step ends in
+"looks fine".
+
+- [ ] `npm run check` passes (typecheck, lint, unit tests)
+- [ ] `npm run db:verify` passes against a scratch PostgreSQL
+- [ ] `.env.local` has both Supabase variables, or neither
+- [ ] `ALLOWED_EMAILS` contains at least your own address
+- [ ] `NEXT_PUBLIC_APP_URL` is the deployed origin, not localhost
+- [ ] `DEMO_MODE` is `false` (or unset) in production
+- [ ] `IMPASTO_MOCK_TRANSLATION` is **not** set in production
+- [ ] `OPENFOODFACTS_USER_AGENT` has a real contact address
+- [ ] Migrations applied; `/api/health` returns `"mode": "supabase"`
+- [ ] Auth redirect URLs include every origin, including previews
+- [ ] Seed applied with your own `owner_id`
+- [ ] Signed in once with a magic link, and a non-allowlisted address was refused
+- [ ] Created a recipe with a photo, reloaded, and it is still there
+- [ ] `/api/health` returns 200 with an empty `problems` array
+
+---
+
+## Backing up your recipes
+
+The recipes are the part that cannot be regenerated. Everything else — the
+seed catalog, the code — is in this repository.
+
+**Automatic.** Supabase takes daily backups on paid plans; on the free plan it
+does not, so the manual route below is not optional there.
+
+**Manual, and worth doing before any migration:**
+
+```bash
+# Everything you have authored, without the schema.
+pg_dump "$DATABASE_URL" --data-only \
+  --table=recipes --table=recipe_translations \
+  --table=recipe_items --table=recipe_steps --table=recipe_step_translations \
+  --table=recipe_sources --table=field_evidence --table=field_evidence_translations \
+  --table=recipe_media --table=recipe_media_translations \
+  --table=recipe_versions --table=cook_sessions --table=recipe_experiments \
+  > impasto-backup-$(date +%F).sql
+```
+
+Photos live in Storage rather than the database, so back the bucket up too:
+
+```bash
+npx supabase storage cp -r ss:///recipe-media ./recipe-media-backup
+```
+
+**Restoring** is the same file played back into an empty schema:
+
+```bash
+psql "$DATABASE_URL" -f impasto-backup-2026-08-18.sql
+```
+
+A restore into a *different* Supabase project needs the `owner_id` columns
+rewritten to the new user's id — every owned table carries it, and RLS will
+otherwise hide rows that belong to a user that no longer exists.
+
+**Demo mode** stores everything under `.impasto-demo/` as one JSON file per
+browser session, plus the photos in the browser's own IndexedDB. Copying the
+directory is a backup of the first half; the photos travel with the browser
+profile and are removed by "Reset demo data".
 
 ---
 

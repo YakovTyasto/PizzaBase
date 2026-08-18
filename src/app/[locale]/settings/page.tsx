@@ -5,7 +5,7 @@ import { LocaleSwitcher } from '@/components/layout/locale-switcher'
 import { DemoControls } from '@/components/settings/demo-controls'
 import { Badge, Card, CardBody, DataRow, SectionHeading } from '@/components/ui/primitives'
 import { appConfig } from '@/lib/config/app-config'
-import { configReport } from '@/lib/config/env'
+import { configReport, validateStartup } from '@/lib/config/env'
 import { getRepository } from '@/lib/data'
 import { providerStatuses } from '@/lib/providers/registry'
 
@@ -34,6 +34,7 @@ export default async function SettingsPage({
 
   const t = await getTranslations()
   const report = configReport()
+  const problems = validateStartup()
   const statuses = providerStatuses()
   const repository = getRepository()
   const settings = await repository.getSettings()
@@ -143,6 +144,31 @@ export default async function SettingsPage({
         <SectionHeading>{report.demoMode ? t('settings.demoMode') : t('auth.signIn')}</SectionHeading>
         <DemoControls demoMode={report.demoMode} />
       </section>
+
+      {/* Startup problems, which are a stronger statement than a warning: a
+          configuration that is not merely incomplete but incoherent. */}
+      {problems.length > 0 ? (
+        <section>
+          <SectionHeading>{t('settings.startupProblems')}</SectionHeading>
+          <ul className="space-y-2">
+            {problems.map((problem) => (
+              <li
+                key={problem.variable}
+                className={
+                  problem.severity === 'error'
+                    ? 'flex items-start gap-2 rounded-lg bg-tomato-soft px-3 py-2 text-sm text-tomato-strong'
+                    : 'flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber'
+                }
+              >
+                <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  <code className="font-medium">{problem.variable}</code> — {problem.message}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {report.warnings.length > 0 ? (
         <section>
