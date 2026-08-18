@@ -177,6 +177,8 @@ export interface SeedRecipe {
   source?: SeedSource
   evidence?: SeedEvidence[]
   media?: SeedRecipeMedia[]
+  /** Locales whose text was machine-translated rather than written. */
+  aiTranslatedLocales?: Locale[]
 }
 
 /**

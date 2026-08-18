@@ -1727,6 +1727,7 @@ function supabaseRowToDraft(
       alt: { ru: photo.alt ?? '', en: photo.alt ?? '', fr: photo.alt ?? '' },
       isCover: photo.isCover,
     })),
+    aiTranslatedLocales: [],
     createVersion: false,
     versionNote: null,
   }
@@ -1840,6 +1841,7 @@ function snapshotToDraft(snapshot: unknown): RecipeDraft | null {
     source: null,
     evidence: [],
     media: [],
+    aiTranslatedLocales: [],
     createVersion: false,
     versionNote: null,
   }

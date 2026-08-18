@@ -56,6 +56,11 @@ export default defineConfig({
         env: {
           DEMO_MODE: 'true',
           NEXT_PUBLIC_DEMO_MODE: 'true',
+          // The translation provider has no fixture fallback in production --
+          // a missing key must show an honest disabled state, not a convincing
+          // fake. This flag opts the suite into a mock so the whole
+          // review-and-apply path can be exercised without a key or a bill.
+          IMPASTO_MOCK_TRANSLATION: 'true',
         },
       },
 })

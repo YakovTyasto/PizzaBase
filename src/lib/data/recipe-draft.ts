@@ -179,6 +179,13 @@ export const recipeDraftSchema = z.object({
     .max(12)
     .default([]),
 
+  /**
+   * Locales whose text came from the translation provider rather than a
+   * person. Recorded so a reader can tell, and so a later human edit can be
+   * distinguished from a machine draft.
+   */
+  aiTranslatedLocales: z.array(z.enum(['ru', 'en', 'fr'])).max(3).default([]),
+
   /** Set when the caller knowingly wants a new immutable version snapshot. */
   createVersion: z.boolean().default(false),
   versionNote: z.string().trim().max(500).nullable().default(null),

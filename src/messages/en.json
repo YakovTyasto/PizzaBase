@@ -503,7 +503,8 @@
       "ingredients": "Ingredients",
       "steps": "Steps",
       "source": "Source",
-      "photos": "Photos"
+      "photos": "Photos",
+      "translate": "Translation"
     },
     "name": "Name",
     "summary": "Short description",
@@ -608,5 +609,20 @@
       "decode_failed": "That image could not be read.",
       "too_small": "That image is too small."
     }
+  },
+  "translate": {
+    "title": "Translation",
+    "target": "Translate into",
+    "run": "{count, plural, =0 {Nothing to translate} one {Translate # field} other {Translate # fields}}",
+    "overwrite": "Overwrite existing translations",
+    "overwriteHint": "By default only empty fields are filled — anything written by hand is left alone.",
+    "scope": "Ingredient names are not translated: they come from the catalog, which has its own translations.",
+    "review": "Review before applying",
+    "apply": "Apply",
+    "applySelected": "{count, plural, one {Apply # translation} other {Apply # translations}}",
+    "refused": "Refused",
+    "refusedHint": "The figures changed ({detail}). This translation cannot be applied.",
+    "nothing": "Every selected field is already translated.",
+    "manualFallback": "You can type the translation by hand on the language tabs."
   }
 }

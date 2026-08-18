@@ -231,10 +231,41 @@ class DisabledTranslationProvider implements TranslationProvider {
   }
 }
 
+/**
+ * A translator for tests, enabled only by an explicit environment flag.
+ *
+ * It is *not* the fallback when a key is missing: production must show an
+ * honest disabled state rather than a convincing fake. The flag exists so the
+ * end-to-end suite can walk the whole review-and-apply path -- including the
+ * invariant guard -- without an API key or a bill, and it is never set in a
+ * deployed environment.
+ *
+ * It marks its output so nobody mistakes it for a translation, while
+ * preserving every figure exactly, which is what the guard checks.
+ */
+class MockTranslationProvider implements TranslationProvider {
+  readonly status = {
+    name: 'Mock translation',
+    available: true,
+    requiredKey: 'OPENAI_API_KEY',
+  }
+
+  async translate(request: TranslationRequest): Promise<string> {
+    return `[${request.to}] ${request.text}`
+  }
+}
+
 export function getTranslationProvider(): TranslationProvider {
-  return serverEnv().openaiApiKey
-    ? new OpenAITranslationProvider()
-    : new DisabledTranslationProvider()
+  if (serverEnv().openaiApiKey) return new OpenAITranslationProvider()
+  if (mockTranslationEnabled()) return new MockTranslationProvider()
+  return new DisabledTranslationProvider()
+}
+
+/** True only when the test harness asked for it, and never in production. */
+export function mockTranslationEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production'
+    ? process.env.IMPASTO_MOCK_TRANSLATION === 'true'
+    : process.env.IMPASTO_MOCK_TRANSLATION === 'true' && serverEnv().demoMode
 }
 
 /**

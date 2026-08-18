@@ -25,6 +25,7 @@ import { useOffline } from '@/lib/client-env'
 import { enqueue } from '@/lib/offline/queue'
 import { cn } from '@/lib/utils'
 import { MediaEditor } from './media-editor'
+import { TranslatePanel } from './translate-panel'
 import { AmountEditor } from './amount-editor'
 import { type EditorOptions, nextKey } from './editor-types'
 import { roleForIngredient } from '@/components/recipe/dough-formula'
@@ -32,7 +33,7 @@ import { roleForIngredient } from '@/components/recipe/dough-formula'
 const LOCALES = ['ru', 'en', 'fr'] as const
 type EditorLocale = (typeof LOCALES)[number]
 
-const SECTIONS = ['general', 'ingredients', 'steps', 'photos', 'source'] as const
+const SECTIONS = ['general', 'ingredients', 'steps', 'photos', 'translate', 'source'] as const
 type Section = (typeof SECTIONS)[number]
 
 /**
@@ -278,6 +279,50 @@ export function RecipeEditor({
 
       {section === 'steps' ? (
         <StepsSection draft={draft} update={update} locale={locale} issueFor={issueFor} />
+      ) : null}
+
+      {section === 'translate' ? (
+        <TranslatePanel
+          draft={draft}
+          onApply={(updates) => {
+            // Applied field by field into the draft the editor already holds,
+            // so this is an unsaved change like any other and Cancel still
+            // discards it.
+            let next = draft
+            const touched = new Set<string>()
+
+            for (const change of updates) {
+              const parts = change.path.split('.')
+              const locale = parts.pop() as 'ru' | 'en' | 'fr'
+              touched.add(locale)
+
+              if (parts.length === 1) {
+                const key = parts[0] as 'names' | 'summaries' | 'notes'
+                next = { ...next, [key]: { ...next[key], [locale]: change.text } }
+                continue
+              }
+
+              // steps.<index>.<field>
+              const index = Number(parts[1])
+              const field = parts[2] as 'instructions' | 'cues'
+              next = {
+                ...next,
+                steps: next.steps.map((step, i) =>
+                  i === index
+                    ? { ...step, [field]: { ...(step[field] ?? {}), [locale]: change.text } }
+                    : step,
+                ),
+              }
+            }
+
+            update({
+              ...next,
+              aiTranslatedLocales: [
+                ...new Set([...next.aiTranslatedLocales, ...touched]),
+              ] as RecipeDraft['aiTranslatedLocales'],
+            })
+          }}
+        />
       ) : null}
 
       {section === 'photos' ? (

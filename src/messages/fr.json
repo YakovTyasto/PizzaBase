@@ -503,7 +503,8 @@
       "ingredients": "Ingrédients",
       "steps": "Étapes",
       "source": "Source",
-      "photos": "Photos"
+      "photos": "Photos",
+      "translate": "Traduction"
     },
     "name": "Nom",
     "summary": "Description courte",
@@ -608,5 +609,20 @@
       "decode_failed": "Cette image n’a pas pu être lue.",
       "too_small": "Cette image est trop petite."
     }
+  },
+  "translate": {
+    "title": "Traduction",
+    "target": "Traduire vers",
+    "run": "{count, plural, =0 {Rien à traduire} one {Traduire # champ} other {Traduire # champs}}",
+    "overwrite": "Écraser les traductions existantes",
+    "overwriteHint": "Par défaut, seuls les champs vides sont remplis — rien de saisi à la main n’est touché.",
+    "scope": "Les noms d’ingrédients ne sont pas traduits : ils viennent du catalogue, qui a ses propres traductions.",
+    "review": "Vérifiez avant d’appliquer",
+    "apply": "Appliquer",
+    "applySelected": "{count, plural, one {Appliquer # traduction} other {Appliquer # traductions}}",
+    "refused": "Refusé",
+    "refusedHint": "Les chiffres ont changé ({detail}). Cette traduction ne peut pas être appliquée.",
+    "nothing": "Tous les champs choisis sont déjà traduits.",
+    "manualFallback": "Vous pouvez saisir la traduction à la main dans les onglets de langue."
   }
 }

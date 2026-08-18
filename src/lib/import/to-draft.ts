@@ -238,6 +238,7 @@ export function importToDraft(input: ImportToDraftInput): RecipeDraft {
       attribution: input.sourceUrl ? `Imported from ${input.sourceUrl}` : null,
     },
     evidence,
+    aiTranslatedLocales: [],
     media: [],
     createVersion: false,
     versionNote: null,

@@ -133,6 +133,7 @@ export function draftToStored(draft: RecipeDraft, slug: string): SeedRecipe {
           attribution: draft.source.attribution,
         }
       : undefined,
+    aiTranslatedLocales: draft.aiTranslatedLocales,
     media: draft.media.map((photo) => ({
       id: photo.id,
       storagePath: photo.storagePath,
@@ -218,6 +219,7 @@ export function storedToDraft(recipe: SeedRecipe): RecipeDraft {
       startSeconds: entry.startSeconds ?? null,
       notes: filledLocalized(entry.notes),
     })),
+    aiTranslatedLocales: recipe.aiTranslatedLocales ?? [],
     media: (recipe.media ?? []).map((photo) => ({
       id: photo.id,
       storagePath: photo.storagePath ?? null,
