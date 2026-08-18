@@ -336,13 +336,63 @@ export class DemoRepository implements Repository {
   }
 
   async listPackageOptions(): Promise<PackageOption[]> {
-    return seedCatalog.packageOptions.map((option) => ({
-      id: option.slug,
-      ingredientId: option.ingredientSlug,
-      netAmount: seedAmountToDomain(option.netAmount),
-      label: option.labels.en,
-      preferred: option.preferred ?? false,
+    const overlay = await this.overlay()
+
+    return [
+      ...seedCatalog.packageOptions.map((option) => ({
+        id: option.slug,
+        ingredientId: option.ingredientSlug,
+        netAmount: seedAmountToDomain(option.netAmount),
+        label: option.labels.en,
+        preferred: option.preferred ?? false,
+      })),
+      // Sizes the owner confirmed from a real package they scanned, which are
+      // better evidence than anything shipped in the catalog.
+      ...overlay.packageOptions.map((option) => ({
+        id: option.id,
+        ingredientId: option.ingredientId,
+        netAmount: seedAmountToDomain({
+          kind: 'exact' as const,
+          value: option.value,
+          unit: option.unit as Unit,
+        }),
+        label: option.label,
+        preferred: true,
+      })),
+    ]
+  }
+
+  async addPackageOption(input: {
+    ingredientId: string
+    label: string
+    value: string
+    unit: Unit
+    barcode?: string | null
+  }): Promise<{ id: string }> {
+    const id = `pkg-${randomUUID().slice(0, 12)}`
+    await this.mutate((overlay) => ({
+      ...overlay,
+      packageOptions: [
+        {
+          id,
+          ingredientId: input.ingredientId,
+          label: input.label,
+          value: input.value,
+          unit: input.unit,
+          barcode: input.barcode ?? null,
+        },
+        // A rescan of the same package updates rather than piling up.
+        ...overlay.packageOptions.filter(
+          (option) =>
+            !(
+              option.ingredientId === input.ingredientId &&
+              option.value === input.value &&
+              option.unit === input.unit
+            ),
+        ),
+      ].slice(0, 200),
     }))
+    return { id }
   }
 
   async listSubstitutions(): Promise<Substitution[]> {

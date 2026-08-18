@@ -5,10 +5,12 @@ import { useTranslations } from 'next-intl'
 import { useRef, useState, useTransition } from 'react'
 import { type ScanResult, lookupBarcodeAction, recognizeImageAction } from '@/app/actions/scan'
 import { addPantryItemAction } from '@/app/actions/pantry'
+import { rememberPackageAction } from '@/app/actions/packages'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Label, Select } from '@/components/ui/primitives'
 import type { Unit } from '@/domain'
 import { useBarcodeDetectorSupported } from '@/lib/client-env'
+import { ImageRejectedError, prepareImage } from '@/lib/media/compress'
 
 /**
  * Package scanner.
@@ -43,6 +45,7 @@ export function ProductScanner({
   const [ingredientId, setIngredientId] = useState(ingredients[0]?.id ?? '')
   const [quantity, setQuantity] = useState('')
   const [unit, setUnit] = useState<Unit>('g')
+  const [rememberPackage, setRememberPackage] = useState(false)
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -109,12 +112,25 @@ export function ProductScanner({
       return
     }
 
-    const formData = new FormData()
-    formData.append('image', file)
     startTransition(async () => {
-      const response = await recognizeImageAction(formData)
-      if (response.ok) applyResult(response.result)
-      else setError(response.error)
+      try {
+        // Shrunk before it reaches a paid API. A phone photo of a label is
+        // 8 MB and reads no better than the 200 KB version, and the
+        // re-encode drops the EXIF -- including where the shot was taken.
+        const prepared = await prepareImage(file)
+        const formData = new FormData()
+        formData.append('image', new File([prepared.blob], 'label.jpg', { type: prepared.type }))
+
+        const response = await recognizeImageAction(formData)
+        if (response.ok) applyResult(response.result)
+        else setError(response.error)
+      } catch (cause) {
+        setError(
+          cause instanceof ImageRejectedError
+            ? t(`media.reject.${cause.reason}`)
+            : t('errors.generic'),
+        )
+      }
     })
   }
 
@@ -127,8 +143,29 @@ export function ProductScanner({
         unit,
         location: 'pantry',
       })
-      if (response.ok) setSaved(true)
-      else setError(response.error)
+      if (!response.ok) {
+        setError(response.error)
+        return
+      }
+
+      // Remembering the package size is what turns "how big is the can?" from
+      // a permanent open question into one the owner has already answered.
+      if (rememberPackage && quantity) {
+        const remembered = await rememberPackageAction({
+          ingredientId,
+          label: result?.displayName ?? result?.brand ?? `${quantity} ${unit}`,
+          value: quantity,
+          unit,
+          barcode: result?.barcode ?? null,
+        })
+        if (!remembered.ok) {
+          // The pantry write already succeeded, so this is reported without
+          // pretending the whole save failed.
+          setError(remembered.error)
+        }
+      }
+
+      setSaved(true)
     })
   }
 
@@ -287,6 +324,23 @@ export function ProductScanner({
             ) : null}
 
             <p className="text-xs text-ink-faint">{t('scanner.keepImageHint')}</p>
+
+            {quantity ? (
+              <label className="flex items-start gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={rememberPackage}
+                  onChange={(event) => setRememberPackage(event.target.checked)}
+                  className="mt-0.5 size-4 accent-[var(--color-tomato)]"
+                />
+                <span>
+                  {t('scanner.rememberPackage')}
+                  <span className="block text-xs text-ink-faint">
+                    {t('scanner.rememberPackageHint')}
+                  </span>
+                </span>
+              </label>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               <Button onClick={save} disabled={pending || !quantity || !ingredientId}>

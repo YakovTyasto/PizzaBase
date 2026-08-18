@@ -431,7 +431,9 @@
     "keepImage": "Keep the photo",
     "keepImageHint": "Off by default. The photo is deleted once you confirm.",
     "cameraDenied": "Camera access was refused.",
-    "cameraDeniedHint": "Upload a photo instead."
+    "cameraDeniedHint": "Upload a photo instead.",
+    "rememberPackage": "Remember this package size",
+    "rememberPackageHint": "It will be offered when a recipe asks about yield, instead of guessing at the can."
   },
   "settings": {
     "title": "Settings",

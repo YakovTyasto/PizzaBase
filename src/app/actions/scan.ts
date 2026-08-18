@@ -1,6 +1,8 @@
 'use server'
 
 import { z } from 'zod'
+import { callerKey } from '@/lib/limits/caller'
+import { checkRate } from '@/lib/limits/rate'
 import { getProductLookupProvider, getVisionProvider } from '@/lib/providers/registry'
 import { ProviderDisabledError, ProviderError } from '@/lib/providers/types'
 
@@ -83,6 +85,16 @@ export async function recognizeImageAction(formData: FormData): Promise<ScanResp
   }
   if (!ALLOWED_MIME.has(file.type)) {
     return { ok: false, error: 'That file type is not supported.' }
+  }
+
+  const verdict = checkRate('vision', await callerKey())
+  if (!verdict.allowed) {
+    return {
+      ok: false,
+      error: `Too many scans in a short time. Try again in ${Math.ceil(
+        verdict.retryAfterSeconds / 60,
+      )} minutes.`,
+    }
   }
 
   const vision = getVisionProvider()

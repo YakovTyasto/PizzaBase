@@ -277,6 +277,17 @@ export interface Repository {
   listIngredients(locale: Locale): Promise<IngredientView[]>
   listCategories(locale: Locale): Promise<CategoryView[]>
   listPackageOptions(): Promise<PackageOption[]>
+  /**
+   * Remembers a package size the owner confirmed after a scan, so the next
+   * "how big is the can?" question can offer the real answer.
+   */
+  addPackageOption(input: {
+    ingredientId: string
+    label: string
+    value: string
+    unit: Unit
+    barcode?: string | null
+  }): Promise<{ id: string }>
   listSubstitutions(): Promise<Substitution[]>
   listStyles(locale: Locale): Promise<{ id: string; name: LocalizedText }[]>
   listOvenProfiles(locale: Locale): Promise<{ id: string; name: LocalizedText }[]>

@@ -431,7 +431,9 @@
     "keepImage": "Conserver la photo",
     "keepImageHint": "Désactivé par défaut. La photo est supprimée après validation.",
     "cameraDenied": "L'accès à la caméra a été refusé.",
-    "cameraDeniedHint": "Envoyez une photo à la place."
+    "cameraDeniedHint": "Envoyez une photo à la place.",
+    "rememberPackage": "Mémoriser ce format d’emballage",
+    "rememberPackageHint": "Il sera proposé quand une recette demande le rendement, au lieu de deviner la taille de la boîte."
   },
   "settings": {
     "title": "Réglages",

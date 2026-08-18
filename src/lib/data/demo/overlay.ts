@@ -134,6 +134,19 @@ const overlaySchema = z.object({
       entries: z.array(planEntrySchema).default([]),
     })
     .default({ id: 'demo-plan', serveAt: null, notes: null, entries: [] }),
+  /** Package sizes the owner confirmed after a scan. */
+  packageOptions: z
+    .array(
+      z.object({
+        id: z.string(),
+        ingredientId: z.string(),
+        label: z.string(),
+        value: z.string(),
+        unit: z.string(),
+        barcode: z.string().nullable().default(null),
+      }),
+    )
+    .default([]),
   sessions: z.array(cookSessionSchema).default([]),
   experiments: z.array(experimentSchema).default([]),
   settings: settingsSchema.default(() => settingsSchema.parse({})),

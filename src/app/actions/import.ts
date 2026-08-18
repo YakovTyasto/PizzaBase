@@ -1,5 +1,6 @@
 'use server'
 
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import {
   type RecipeExtraction,
@@ -24,6 +25,8 @@ import { ProviderDisabledError, ProviderError } from '@/lib/providers/types'
 import { revalidatePath } from 'next/cache'
 import type { Locale } from '@/domain'
 import { getRepository } from '@/lib/data'
+import { callerKey } from '@/lib/limits/caller'
+import { checkRate } from '@/lib/limits/rate'
 import { sniffImageType } from '@/lib/media/signature'
 import {
   buildCatalog,
@@ -78,6 +81,9 @@ export async function importFromYouTubeAction(rawUrl: unknown): Promise<ImportRe
   const parsed = z.string().min(1).max(500).safeParse(rawUrl)
   if (!parsed.success) return { ok: false, error: 'A video link is required' }
 
+  const allowed = await guard('extraction')
+  if (allowed) return allowed
+
   let videoId: string
   try {
     // Rejects any host but YouTube, so a user-supplied URL can never become an
@@ -107,10 +113,29 @@ export async function importFromYouTubeAction(rawUrl: unknown): Promise<ImportRe
 
   try {
     const text = transcriptToPlainText(transcript)
+
+    // The same video analysed twice in a row is the same candidate; returning
+    // the cached one costs nothing instead of paying for the identical answer.
+    const cached = readCandidate(text)
+    if (cached) {
+      return {
+        ok: true,
+        candidate: {
+          extraction: cached,
+          issues: validateExtraction(cached),
+          sourceUrl: watchUrlFor(videoId),
+          videoId,
+          provider: transcript.provider,
+          hasTimecodes: true,
+        },
+      }
+    }
+
     const extraction = await getExtractionProvider().extract(
       { text, sourceUrl: watchUrlFor(videoId), hasTimecodes: true },
       recipeExtractionSchema,
     )
+    writeCandidate(text, extraction)
     // `transcript` and `text` go out of scope here and are never persisted.
     return {
       ok: true,
@@ -150,6 +175,9 @@ export async function importFromTextAction(input: unknown): Promise<ImportResult
       sourceUrl = null
     }
   }
+
+  const allowed = await guard('extraction')
+  if (allowed) return allowed
 
   try {
     const transcript = transcriptFromText(parsed.data.text)
@@ -209,6 +237,9 @@ export async function importFromPhotoAction(input: unknown): Promise<ImportResul
 
   const sniffed = sniffImageType(bytes.slice(0, 32))
   if (!sniffed) return { ok: false, error: 'That file is not a JPEG, PNG or WebP' }
+
+  const allowed = await guard('vision')
+  if (allowed) return allowed
 
   const provider = getRecipeVisionProvider()
 
@@ -384,4 +415,57 @@ export async function approveImportAction(input: unknown): Promise<ApproveResult
   revalidatePath('/', 'layout')
 
   return { ok: true, slug: saved.slug, alreadyExisted: false }
+}
+
+// ---------------------------------------------------------------------------
+// Cost controls
+// ---------------------------------------------------------------------------
+
+/**
+ * Refuses a paid call the caller has already made too many of.
+ *
+ * Returns the error to send back, or null to continue -- so a caller reads as
+ * `const denied = await guard(...); if (denied) return denied`.
+ */
+async function guard(kind: 'extraction' | 'vision'): Promise<ImportResult | null> {
+  const verdict = checkRate(kind, await callerKey())
+  if (verdict.allowed) return null
+
+  return {
+    ok: false,
+    error: `Too many analyses in a short time. Try again in ${Math.ceil(
+      verdict.retryAfterSeconds / 60,
+    )} minutes.`,
+  }
+}
+
+/**
+ * A short-lived cache of extractions, keyed by the text they were made from.
+ *
+ * Pressing Analyse twice on the same transcript is a normal thing to do -- the
+ * first result scrolled away, or the review screen was discarded and reopened.
+ * Paying twice for a deterministic answer is not.
+ */
+const candidateCache = new Map<string, { extraction: RecipeExtraction; at: number }>()
+const CANDIDATE_TTL_MS = 30 * 60 * 1000
+const CANDIDATE_MAX = 50
+
+function cacheKey(text: string): string {
+  return createHash('sha256').update(text).digest('hex')
+}
+
+function readCandidate(text: string): RecipeExtraction | null {
+  const hit = candidateCache.get(cacheKey(text))
+  if (!hit) return null
+  if (Date.now() - hit.at > CANDIDATE_TTL_MS) return null
+  return hit.extraction
+}
+
+function writeCandidate(text: string, extraction: RecipeExtraction): void {
+  if (candidateCache.size >= CANDIDATE_MAX) {
+    // Oldest first; a Map iterates in insertion order.
+    const oldest = candidateCache.keys().next().value
+    if (oldest) candidateCache.delete(oldest)
+  }
+  candidateCache.set(cacheKey(text), { extraction, at: Date.now() })
 }

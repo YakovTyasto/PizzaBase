@@ -1405,6 +1405,57 @@ export class SupabaseRepository implements Repository {
     return recipe?.slug ?? null
   }
 
+  async addPackageOption(input: {
+    ingredientId: string
+    label: string
+    value: string
+    unit: Unit
+    barcode?: string | null
+  }): Promise<{ id: string }> {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    // Owned by the person who scanned it: a package size confirmed from a real
+    // label is their evidence, not a change to the shared catalog.
+    const slug = `scanned-${input.ingredientId}-${input.value}${input.unit}`
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .slice(0, 100)
+
+    const { data, error } = await supabase
+      .from('ingredient_package_options')
+      .upsert(
+        {
+          owner_id: user.id,
+          slug,
+          ingredient_id: input.ingredientId,
+          package_type: 'pack',
+          net_quantity: input.value,
+          unit: input.unit,
+          barcode: input.barcode ?? null,
+          preferred: true,
+        },
+        // Rescanning the same package updates it rather than adding a second.
+        { onConflict: 'owner_id,slug' },
+      )
+      .select('id')
+      .single()
+    if (error) throw new Error(error.message)
+
+    const optionId = (data as { id: string }).id
+
+    for (const locale of ['ru', 'en', 'fr'] as const) {
+      await supabase
+        .from('ingredient_package_option_translations')
+        .upsert({ package_option_id: optionId, locale, label: input.label })
+    }
+
+    return { id: optionId }
+  }
+
   // --- Media ---------------------------------------------------------------
 
   /**

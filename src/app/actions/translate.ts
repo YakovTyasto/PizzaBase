@@ -2,6 +2,8 @@
 
 import { z } from 'zod'
 import type { Locale } from '@/domain'
+import { callerKey } from '@/lib/limits/caller'
+import { checkRate } from '@/lib/limits/rate'
 import { getTranslationProvider } from '@/lib/providers/registry'
 import { ProviderDisabledError } from '@/lib/providers/types'
 import { compareInvariants, describeDiff } from '@/lib/translate/invariants'
@@ -54,6 +56,16 @@ export async function translateFieldsAction(input: unknown): Promise<TranslateRe
 
   const { from, to, fields } = parsed.data
   if (from === to) return { ok: false, error: 'Source and target are the same language' }
+
+  const verdict = checkRate('translation', await callerKey())
+  if (!verdict.allowed) {
+    return {
+      ok: false,
+      error: `Too many translations in a short time. Try again in ${Math.ceil(
+        verdict.retryAfterSeconds / 60,
+      )} minutes.`,
+    }
+  }
 
   const provider = getTranslationProvider()
   if (!provider.status.available) {
