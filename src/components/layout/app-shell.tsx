@@ -7,6 +7,7 @@ import { BottomNav } from './bottom-nav'
 import { LocaleSwitcher } from './locale-switcher'
 import { OfflineIndicator } from './offline-indicator'
 import { Sidebar } from './sidebar'
+import { SyncStatus } from '@/components/offline/sync-status'
 
 export async function AppShell({ children }: { children: ReactNode }) {
   const t = await getTranslations()
@@ -44,6 +45,11 @@ export async function AppShell({ children }: { children: ReactNode }) {
 
         {/* pb-24 keeps content clear of the fixed bottom bar on phones. */}
         <main id="main" className="page-shell flex-1 pt-5 pb-24 lg:pb-10">
+          {/* Anything saved offline and still waiting is shown above the page
+              rather than buried, so it cannot be mistaken for saved. */}
+          <div className="mb-4 empty:mb-0">
+            <SyncStatus />
+          </div>
           {children}
         </main>
 

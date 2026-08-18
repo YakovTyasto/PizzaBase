@@ -818,19 +818,26 @@ export class DemoRepository implements Repository {
     return slug
   }
 
-  // --- Imports -------------------------------------------------------------
+  // --- Idempotency ---------------------------------------------------------
 
-  async hasApprovedImport(idempotencyKey: string): Promise<boolean> {
+  async findAppliedMutation(idempotencyKey: string): Promise<string | null> {
     const overlay = await this.overlay()
-    return overlay.approvedImports.includes(idempotencyKey)
+    const slug = overlay.appliedMutations[idempotencyKey]
+    // A key whose recipe has since been deleted is treated as unused, so the
+    // owner can save it again rather than being pointed at nothing.
+    if (!slug) return null
+    return findRecipe(overlay, slug) ? slug : null
   }
 
-  async markImportApproved(idempotencyKey: string): Promise<void> {
-    await this.mutate((overlay) => ({
-      ...overlay,
+  async recordAppliedMutation(idempotencyKey: string, slug: string): Promise<void> {
+    await this.mutate((overlay) => {
       // Bounded: the guard only needs the recent past.
-      approvedImports: [...new Set([idempotencyKey, ...overlay.approvedImports])].slice(0, 200),
-    }))
+      const entries = [
+        [idempotencyKey, slug] as const,
+        ...Object.entries(overlay.appliedMutations).filter(([key]) => key !== idempotencyKey),
+      ].slice(0, 200)
+      return { ...overlay, appliedMutations: Object.fromEntries(entries) }
+    })
   }
 
   // --- Demo housekeeping ---------------------------------------------------

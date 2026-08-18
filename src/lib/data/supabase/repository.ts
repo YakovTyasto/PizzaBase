@@ -1296,30 +1296,38 @@ export class SupabaseRepository implements Repository {
     return slug
   }
 
-  // --- Imports -------------------------------------------------------------
+  // --- Idempotency ---------------------------------------------------------
 
-  async hasApprovedImport(idempotencyKey: string): Promise<boolean> {
+  async findAppliedMutation(idempotencyKey: string): Promise<string | null> {
     const supabase = await createClient()
+    // RLS scopes this to the caller's own rows, so one owner's key can never
+    // hand another owner's recipe back.
     const { data } = await supabase
       .from('approved_imports')
-      .select('idempotency_key')
+      .select('recipes (slug)')
       .eq('idempotency_key', idempotencyKey)
       .maybeSingle()
-    return Boolean(data)
+
+    const recipe = (data as { recipes?: { slug?: string } | null } | null)?.recipes
+    return recipe?.slug ?? null
   }
 
-  async markImportApproved(idempotencyKey: string): Promise<void> {
+  async recordAppliedMutation(idempotencyKey: string, slug: string): Promise<void> {
     const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) throw new Error('Not signed in')
 
+    const { data: recipeId } = await supabase.rpc('resolve_recipe_id', { p_slug: slug })
+
     // The primary key makes a concurrent double submit fail rather than
     // silently producing a second recipe.
-    const { error } = await supabase
-      .from('approved_imports')
-      .insert({ owner_id: user.id, idempotency_key: idempotencyKey })
+    const { error } = await supabase.from('approved_imports').insert({
+      owner_id: user.id,
+      idempotency_key: idempotencyKey,
+      recipe_id: recipeId ?? null,
+    })
     if (error && !error.message.includes('duplicate')) throw new Error(error.message)
   }
 }

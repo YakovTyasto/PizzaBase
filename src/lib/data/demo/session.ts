@@ -1,6 +1,7 @@
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { cookies } from 'next/headers'
+import { DEMO_SESSION_COOKIE, isValidSessionId } from './session-id'
 
 /**
  * Demo-mode session identity.
@@ -11,12 +12,7 @@ import { cookies } from 'next/headers'
  * browser restart still finds the same data.
  */
 
-const COOKIE_NAME = 'impasto_demo_session'
-const ID_PATTERN = /^[a-zA-Z0-9_-]{8,64}$/
-
-export function isValidSessionId(value: string): boolean {
-  return ID_PATTERN.test(value)
-}
+const COOKIE_NAME = DEMO_SESSION_COOKIE
 
 /** Reads the current session id, or null when this browser has none yet. */
 export async function readSessionId(): Promise<string | null> {
@@ -27,9 +23,11 @@ export async function readSessionId(): Promise<string | null> {
 /**
  * Reads the session id, minting one if needed.
  *
- * Only callable from a Server Action or Route Handler: Next.js forbids setting
- * cookies while rendering, which is the right constraint since a read must
- * never mutate. Reads use `readSessionId` and fall back to the seed.
+ * In demo mode the proxy has normally minted one already, so this usually just
+ * reads it back. It still mints as a fallback, for the paths the proxy does not
+ * cover. Only callable from a Server Action or Route Handler: Next.js forbids
+ * setting cookies while rendering, which is the right constraint since a read
+ * must never mutate. Reads use `readSessionId` and fall back to the seed.
  */
 export async function ensureSessionId(): Promise<string> {
   const existing = await readSessionId()

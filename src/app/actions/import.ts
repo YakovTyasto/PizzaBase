@@ -257,14 +257,11 @@ export async function approveImportAction(input: unknown): Promise<ApproveResult
   const repository = getRepository()
   const key = idempotencyKeyFor(extraction, sourceUrl)
 
-  if (await repository.hasApprovedImport(key)) {
-    // Already saved. Point at the existing recipe rather than making another.
-    const existing = await repository.listRecipes(locale as Locale)
-    const title = extraction.title?.trim().toLowerCase()
-    const match = existing.find((recipe) => recipe.name.value.trim().toLowerCase() === title)
-    return match
-      ? { ok: true, slug: match.slug, alreadyExisted: true }
-      : { ok: false, error: 'This import was already approved' }
+  const already = await repository.findAppliedMutation(key)
+  if (already) {
+    // Already saved. Point at the exact recipe it produced rather than making
+    // another, or guessing which one it was from the title.
+    return { ok: true, slug: already, alreadyExisted: true }
   }
 
   const resolvedSlugs: Record<string, string> = { ...resolved }
@@ -304,12 +301,11 @@ export async function approveImportAction(input: unknown): Promise<ApproveResult
     locale: locale as Locale,
   })
 
-  const saved = await saveRecipeAction(draft)
+  // The key travels with the save, so even a double submit that races past the
+  // check above resolves to one recipe.
+  const saved = await saveRecipeAction(draft, key)
   if (!saved.ok) return { ok: false, error: saved.error }
 
-  // Marked only after the recipe genuinely exists, so a failed save can be
-  // retried rather than being permanently treated as done.
-  await repository.markImportApproved(key)
   revalidatePath('/', 'layout')
 
   return { ok: true, slug: saved.slug, alreadyExisted: false }

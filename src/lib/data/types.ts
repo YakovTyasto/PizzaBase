@@ -303,9 +303,17 @@ export interface Repository {
     aliases?: string[]
   }): Promise<string>
 
-  // --- Imports -------------------------------------------------------------
+  // --- Idempotency ---------------------------------------------------------
 
-  /** True when this import candidate was already approved (double-submit guard). */
-  hasApprovedImport(idempotencyKey: string): Promise<boolean>
-  markImportApproved(idempotencyKey: string): Promise<void>
+  /*
+   * A ledger of writes already applied, keyed by an idempotency key the caller
+   * derives from the content. It backs two things that look different but are
+   * the same problem: approving an import twice, and replaying a queued offline
+   * draft whose response was lost. Both must resolve to the recipe that already
+   * exists rather than making a second one.
+   */
+
+  /** The slug written under this key, or null when it has not been used. */
+  findAppliedMutation(idempotencyKey: string): Promise<string | null>
+  recordAppliedMutation(idempotencyKey: string, slug: string): Promise<void>
 }

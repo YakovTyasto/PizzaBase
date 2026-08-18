@@ -227,7 +227,8 @@ begin
   if n <> 1 then failures := failures || 'the snapshot does not hold the previous state'; end if;
 
   -- ---------------------------------------------------------------------
-  -- Import idempotency is enforced by the primary key.
+  -- Idempotency is enforced by the primary key, and the ledger remembers
+  -- which recipe a key produced so a replay resolves to that one.
   -- ---------------------------------------------------------------------
   insert into approved_imports (owner_id, idempotency_key, recipe_id)
   values (v_owner, 'key-abc', v_id);
@@ -239,6 +240,14 @@ begin
     when unique_violation then
       null; -- expected
   end;
+
+  -- The key resolves back to the recipe it wrote, which is what lets a lost
+  -- response be retried without producing a second recipe.
+  select count(*) into n
+  from approved_imports ai
+  join recipes r on r.id = ai.recipe_id
+  where ai.owner_id = v_owner and ai.idempotency_key = 'key-abc' and r.slug = 'test-sauce';
+  if n <> 1 then failures := failures || 'the ledger does not resolve to its recipe'; end if;
 
   -- Clean up so re-running the verification script stays deterministic.
   delete from recipes where slug = 'test-sauce' and owner_id = v_owner;

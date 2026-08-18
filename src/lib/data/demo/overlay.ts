@@ -108,7 +108,8 @@ const overlaySchema = z.object({
   sessions: z.array(cookSessionSchema).default([]),
   settings: settingsSchema.default(() => settingsSchema.parse({})),
   /** Import candidates already approved, so a double submit cannot duplicate. */
-  approvedImports: z.array(z.string()).default([]),
+  /* Idempotency key -> the recipe slug it produced. Bounded when written. */
+  appliedMutations: z.record(z.string(), z.string()).default({}),
 })
 
 export type DemoOverlay = z.infer<typeof overlaySchema>

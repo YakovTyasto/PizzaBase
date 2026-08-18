@@ -8,21 +8,66 @@ aspirational filler — the "not yet built" section lists real gaps.
 **The calculation engine.** Decimal-safe units, four amount shapes, nested
 recipe expansion with cycle detection and provenance, area-based size scaling,
 baker's percentages, pantry deduction, package rounding, backward fermentation
-scheduling, and deterministic recommendation ranking. 139 unit tests.
+scheduling, and deterministic recommendation ranking.
 
-**Demo mode.** The whole app runs with no database and no API keys. Pantry,
-plan, cooking sessions and settings persist per browser.
+**Authoring.** A full editor for pizzas, doughs, sauces and preparations:
+RU/EN/FR names, summaries, notes and step instructions with fallback; draft /
+needs-review / verified; ingredients and nested components; exact, range,
+qualitative and unknown quantities; groups, ordering and preparation notes;
+steps with phases, active and waiting durations, temperatures and sensory cues;
+source, attribution, credibility and per-field evidence; yield, diameter,
+shape, tray dimensions and ball weight, with live baker's percentages. Cycles
+are refused in three places — the component picker, the repository, and a
+database trigger.
+
+**Real persistence.** Writes go through the repository layer to whichever
+backend is configured. In Supabase one `save_recipe` function writes the whole
+recipe in a single transaction under the caller's own RLS, so a failure leaves
+no half-recipe. In demo mode changes are stored server-side on top of the seed
+and survive a browser restart; the cookie holds only a session id, and
+Settings has a confirmed "reset demo data".
+
+**Import that finishes.** Approving a candidate matches every extracted name
+against the catalog across all three locales and their aliases, creates new
+canonical ingredients only when asked, writes the recipe with its
+translations, steps, source, evidence and timecodes, and opens the saved
+recipe. A content-derived idempotency key means approving twice — or
+double-clicking — produces one recipe. The transcript is discarded once
+structuring succeeds.
+
+**Sign-in.** `/login` with Supabase magic links, refused before any mail is
+sent for an address that is not on the allowlist, re-checked when the link is
+used, and returning to the route the visitor was heading for. Demo mode gets
+its own clearly-labelled local entry rather than a form that could not work.
+
+**Versions and comparison.** Changing a verified recipe snapshots what it was.
+The comparison screen groups changes by quantities, timings, temperatures,
+steps and notes, shows baker's percentages before and after, and can make an
+earlier version primary without destroying the current one.
+
+**Needs review.** Every unknown quantity, missing component yield and recorded
+conflict, gathered per recipe and answerable in place. Answering once updates
+everything downstream. Yield questions offer the real package sizes plus free
+entry — no size is ever preselected as the answer.
+
+**Offline writes.** Recipe drafts and cooking progress can be saved with no
+connection. They queue on the device, are labelled as queued rather than as
+saved, and replay when the connection returns, carrying an idempotency key so
+a replay whose response was lost cannot produce a duplicate. A server-side
+change is parked as a conflict with the local copy intact and the owner
+chooses. Plans, pantry and imports still require a connection and say so.
 
 **Database.** Full schema with RLS on every table, a cycle-rejecting trigger,
-and a generated idempotent seed. Verified against PostgreSQL 16 by
-`npm run db:verify`.
+the authoring function and its idempotency ledger, and a generated idempotent
+seed. Verified against PostgreSQL 16 by `npm run db:verify`, which also
+asserts that `save_recipe` is atomic.
 
-**Screens.** Home, recipe library with URL-backed filters, recipe detail with
-live scaling, plan builder, consolidated shopping list, pantry, "cook with
-what I have", fermentation planner with `.ics` export, cooking mode with
-multiple timers and wake lock, import with side-by-side review, product
-scanner, settings, cook history, plus not-found / error / loading / offline
-states.
+**Screens.** Home, library with URL-backed filters, recipe detail with live
+scaling, editor, needs-review, versions, sign-in, plan builder, consolidated
+shopping list, pantry, "cook with what I have", fermentation planner with
+`.ics` export, cooking mode with multiple timers and wake lock, import with
+side-by-side review, product scanner, settings, cook history, plus not-found /
+error / loading / offline states.
 
 **Internationalization.** RU / EN / FR across UI, content, search, numbers,
 dates and plurals, with fallback badges.
@@ -34,57 +79,47 @@ state naming its environment variable.
 **PWA.** Manifest, icons, hand-written service worker, offline reading and
 offline cooking progress.
 
+**Tests.** 213 unit tests (Vitest) and 156 end-to-end tests (Playwright, run
+at both 390 px and desktop widths), plus SQL assertions against real
+PostgreSQL. No test in the suite is skipped.
+
 ---
 
 ## Not yet built
 
 These are gaps, stated plainly.
 
-### Recipe editor
+### Photos on a recipe
 
-The detail screen is read-only. Creating and editing recipes, steps and
-translations through the UI is the largest missing piece — today a recipe is
-added by editing the seed catalog or by importing one. The RU/EN/FR tabbed
-editor with an AI-translate button described in the brief is not implemented.
+The editor covers every field the brief lists except images: `recipe_media`
+exists in the schema and the draft carries a `media` array, but there is no
+upload control and no storage bucket wired up. Everything else about a recipe
+can be authored through the UI.
 
-### Import approval
+### AI translation button
 
-The import pipeline runs end to end and the review screen renders unknowns and
-conflicts correctly, but the **Save** button does not yet write the approved
-candidate into the database. The pieces it needs — ingredient matching against
-the catalog, creating new ingredients on confirmation, writing evidence rows —
-are designed but not wired.
+Translations are authored by hand in the RU/EN/FR tabs, and a missing one
+falls back to the origin language with a badge. The "translate this field"
+button that would call the configured provider is not built; the provider
+itself is.
 
-### Versions and comparison
+### End-of-cook capture
 
-`recipe_versions` and `recipe_experiments` exist in the schema and the history
-screen lists cook sessions, but the version-diff view (amounts, baker's
-percentages, times, temperatures side by side) and "make this the main
-version" are not implemented.
-
-### Cook session persistence
-
-Cooking progress is saved locally and survives reloads. Writing a finished
-session back through the repository — rating, photo, note — is implemented in
-the repository layer but not yet connected to the end-of-cook screen.
-
-### Supabase repository coverage
-
-Reads, pantry, plan, sessions and settings are implemented. Recipe *writes*
-through Supabase (create, update, delete) are not, because the editor that
-would use them does not exist yet.
-
-### Offline writes
-
-Deliberately out of scope for this release. Reads and local cooking progress
-work offline; mutations require a connection and fail loudly. A sync queue is
-only worth building if it is reliable.
+A cooking session's progress and the recipe version it used are recorded.
+Rating, photo and a note at the end of a cook are implemented in the
+repository but not yet offered by the cooking screen.
 
 ### Photo recipe import
 
 The tab exists and explains what it needs. The vision provider and schema are
 implemented and used by the product scanner, so wiring the photo importer is
 mostly plumbing.
+
+### Experiments
+
+`recipe_experiments` exists in the schema. Recording "I tried this variation
+and here is what happened" as a first-class thing, separate from a version, is
+not built.
 
 ### Notifications
 
@@ -96,31 +131,35 @@ neither is built.
 
 ## Known limitations
 
-**The owner's pizzas have no quantities.** This is intentional and follows the
-brief: amounts the owner never stated are `unknown`, and the app says so. It
-does mean the headline scaling demo runs on the dough recipes, which have real
-figures from their sources. Filling in one amount in the editor (once built)
-will make the pizzas scale too.
+**The owner's pizzas still have no quantities.** This is intentional and
+follows the brief: amounts nobody stated are `unknown`, and the app says so
+rather than inventing them. The difference from before is that they are now
+answerable — `/ru/review` lists every one of them, and answering updates the
+scaling, the shopping list and any recipe that uses them as a component.
 
 **The tomato sauce has no yield** until a can size is chosen, so pizzas using
-it report "this component has no yield yet" rather than expanding. That is the
-designed behaviour, not a bug — but a small "choose your can size" affordance
-on the sauce would turn a correct message into a solved problem, and is the
-single highest-value next change.
+it report "this component has no yield yet" rather than expanding. The review
+screen now offers the real package sizes alongside free entry, so this is a
+question the owner can settle in one click — but it is deliberately not
+settled for them.
 
-**`ALLOWED_EMAILS` is checked, but the sign-in UI is not built.** Demo mode
-needs no sign-in, and the allowlist plumbing (`isEmailAllowed`, the
-`access_allowlist` table, the Settings status panel) is in place. The magic-link
-screen itself is not.
+**Demo mode is one machine.** Changes persist under `.impasto-demo/`, keyed by
+a session cookie. That survives a browser restart but does not follow you to
+another device, and it is not backed up. That is what connecting Supabase is
+for.
+
+**The offline queue is per-device and narrow by design.** It covers recipe
+drafts and cooking progress. Anything else fails loudly rather than being
+replayed against a server that may have moved on.
 
 ---
 
 ## Suggested order of work
 
-1. Can-size selection for the tomato sauce, unblocking the full pizza →
-   sauce → ingredient chain.
-2. Recipe editor, including the translation tabs.
-3. Import approval, reusing the editor's ingredient matcher.
-4. Sign-in screen and the allowlist flow.
-5. Versions and comparison.
-6. Photo import and push notifications.
+1. Photos: storage bucket, upload control, and the media strip on the recipe
+   page.
+2. End-of-cook capture, closing the loop from cooking session to history.
+3. The AI translation button in the editor.
+4. Photo recipe import.
+5. Experiments as a first-class record.
+6. Push notifications for timers.

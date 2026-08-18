@@ -50,31 +50,6 @@ test.describe('demo mode and the library', () => {
     await expect(page.getByRole('link', { name: /Импорт/ }).first()).toBeVisible()
   })
 
-  test('has no horizontal overflow on a 390 px phone', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Mobile layout check')
-
-    for (const path of ['/ru', '/ru/recipes', '/ru/plan', '/ru/pantry', '/ru/settings']) {
-      await page.goto(path)
-      // Let fonts and the filter row settle; measuring mid-layout reports a
-      // transient width that no user ever sees.
-      await page.waitForLoadState('networkidle')
-
-      const measured = await page.evaluate(() => ({
-        scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
-        widest: Array.from(document.querySelectorAll('*'))
-          .map((el) => {
-            const rect = el.getBoundingClientRect()
-            return { tag: el.tagName, cls: String(el.className).slice(0, 60), right: rect.right }
-          })
-          .filter((entry) => entry.right > document.documentElement.clientWidth + 1)
-          .slice(0, 3),
-      }))
-
-      expect(
-        measured.scrollWidth,
-        `${path} overflows horizontally: ${JSON.stringify(measured.widest)}`,
-      ).toBeLessThanOrEqual(measured.clientWidth + 1)
-    }
-  })
+  // The 390 px overflow check lives in mobile-layout.spec.ts, which pins the
+  // viewport itself so it runs in every project rather than being skipped.
 })

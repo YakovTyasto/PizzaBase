@@ -21,6 +21,8 @@ import {
 import { useRouter } from '@/i18n/navigation'
 import type { DraftValidationIssue, RecipeDraft } from '@/lib/data/recipe-draft'
 import { validateDraft } from '@/lib/data/recipe-draft'
+import { useOffline } from '@/lib/client-env'
+import { enqueue } from '@/lib/offline/queue'
 import { cn } from '@/lib/utils'
 import { AmountEditor } from './amount-editor'
 import { type EditorOptions, nextKey } from './editor-types'
@@ -65,6 +67,8 @@ export function RecipeEditor({
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [queued, setQueued] = useState(false)
+  const offline = useOffline()
 
   const update = useCallback((patch: Partial<RecipeDraft>) => {
     setDraft((current) => ({ ...current, ...patch }))
@@ -119,19 +123,34 @@ export function RecipeEditor({
     }
 
     startTransition(async () => {
-      const result = await saveRecipeAction(draft)
-      if (result.ok) {
-        setDirty(false)
-        setSaved(true)
-        router.push(`/recipes/${result.slug}`)
-        return
-      }
-      // The UI must never claim success when nothing was written.
-      setSaved(false)
-      setError(result.error)
-      setServerIssues(result.issues ?? [])
-      if (result.cycle) {
-        setError(t('errors.cycleHint', { chain: result.cycle.join(' → ') }))
+      try {
+        const result = await saveRecipeAction(draft)
+        if (result.ok) {
+          setDirty(false)
+          setSaved(true)
+          setQueued(false)
+          router.push(`/recipes/${result.slug}`)
+          return
+        }
+        // The UI must never claim success when nothing was written.
+        setSaved(false)
+        setError(result.error)
+        setServerIssues(result.issues ?? [])
+        if (result.cycle) {
+          setError(t('errors.cycleHint', { chain: result.cycle.join(' → ') }))
+        }
+      } catch (cause) {
+        // The request itself never reached the server. Drafts are one of the
+        // two things safe to replay later, so it is queued rather than lost --
+        // and labelled as queued, not as saved.
+        if (offline || cause instanceof TypeError) {
+          enqueue('recipe-draft', draft.slug ?? `new-${draft.names[draft.originLocale]}`, draft)
+          setQueued(true)
+          setDirty(false)
+          setError(null)
+          return
+        }
+        setError(cause instanceof Error ? cause.message : t('errors.generic'))
       }
     })
   }
@@ -208,6 +227,7 @@ export function RecipeEditor({
         <div className="flex items-center gap-2">
           {dirty ? <Badge tone="warn">{t('editor.unsaved')}</Badge> : null}
           {saved ? <Badge tone="good">{t('editor.saved')}</Badge> : null}
+          {queued ? <Badge tone="accent">{t('sync.offlineSaved')}</Badge> : null}
         </div>
       </div>
 

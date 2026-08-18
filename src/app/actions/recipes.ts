@@ -24,7 +24,19 @@ export type SaveResult =
   | { ok: true; slug: string; created: boolean; versionCreated: boolean }
   | { ok: false; error: string; issues?: DraftValidationIssue[]; cycle?: string[] }
 
-export async function saveRecipeAction(input: unknown): Promise<SaveResult> {
+/**
+ * Saves a draft.
+ *
+ * `idempotencyKey` is optional and used by the two callers that can legitimately
+ * submit the same write twice: an approved import, and a queued offline draft
+ * whose response was lost before the client saw it. When a key has already been
+ * applied, the recipe it produced is returned instead of a second one being
+ * created.
+ */
+export async function saveRecipeAction(
+  input: unknown,
+  idempotencyKey?: string,
+): Promise<SaveResult> {
   const parsed = recipeDraftSchema.safeParse(input)
   if (!parsed.success) {
     return {
@@ -42,8 +54,23 @@ export async function saveRecipeAction(input: unknown): Promise<SaveResult> {
     return { ok: false, error: 'Please fix the highlighted fields', issues }
   }
 
+  const key = typeof idempotencyKey === 'string' ? idempotencyKey.slice(0, 200) : null
+
   try {
-    const result = await getRepository().saveRecipe(parsed.data)
+    const repository = getRepository()
+
+    if (key) {
+      const already = await repository.findAppliedMutation(key)
+      if (already) {
+        // This exact write already landed; point at what it produced.
+        return { ok: true, slug: already, created: false, versionCreated: false }
+      }
+    }
+
+    const result = await repository.saveRecipe(parsed.data)
+    // Recorded only after the recipe genuinely exists, so a failed save can be
+    // retried rather than being permanently treated as done.
+    if (key) await repository.recordAppliedMutation(key, result.slug)
     // The library, the recipe page and anything that expands this recipe as a
     // component all need to reflect the change.
     revalidatePath('/', 'layout')

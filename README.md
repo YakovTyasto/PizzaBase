@@ -23,10 +23,16 @@ Open <http://localhost:3000>. You will be redirected to `/ru`; the language
 switcher in the header moves between RU / EN / FR without leaving the page you
 are on.
 
-That is **demo mode**. The recipe catalog comes from a seed bundled with the
-app, and the things you change — pantry, plan, cooking sessions, settings —
-persist in a cookie in your browser. A badge in the header says so, because an
-app that quietly forgets your data is worse than one that tells you it will.
+That is **demo mode**, and it is a working app rather than a display case: you
+can write recipes, edit them, import one, and come back tomorrow to find them.
+The bundled catalog is the starting point; everything you change is stored
+separately on top of it and can be thrown away in one click from Settings.
+
+The browser holds nothing but a short session id — the recipes themselves live
+server-side under `.impasto-demo/`, so the catalog can grow without ever
+running into a cookie size limit. A badge in the header says you are in demo
+mode, because an app that quietly forgets your data is worse than one that
+tells you it will.
 
 ### What to look at first
 
@@ -36,7 +42,27 @@ app that quietly forgets your data is worse than one that tells you it will.
 | `/ru/recipes/margherita-user` | The opposite: quantities the owner never wrote down, shown as questions rather than zeros. |
 | `/ru/recipes/pesto-genovese-user` | A source that contradicts itself, recorded as a conflict instead of being quietly "fixed". |
 | `/ru/plan` → `/ru/shopping` | Build a pizza night, get one consolidated list with pantry deduction and package rounding. |
+| `/ru/recipes/new?type=sauce` | Write a recipe of your own. Four kinds of quantity, including "unknown", which stays unknown. |
+| `/ru/review` | Every open question in one place — each answerable once, after which the calculations that depend on it follow. |
+| `/ru/import?tab=text` | Paste any text. With no API key a fixture stands in, deliberately containing an unknown amount and a contradiction. |
 | `/ru/settings` | Exactly which integrations are live and which environment variable would enable each one. |
+
+### The ten-minute tour
+
+Nothing below needs an account, a database or an API key:
+
+1. Create a sauce at `/ru/recipes/new?type=sauce` — give it a yield, add a can
+   of tomatoes, basil "to taste", and leave the oil's amount unknown.
+2. Create a pizza and add that sauce as a *component*. Its ingredients expand
+   into the pizza's list, scaled by how much of the batch you used.
+3. Rescale the pizza; add it to `/ru/plan`; open `/ru/shopping` and see the
+   sauce broken back down into what you actually have to buy.
+4. Import the fixture at `/ru/import?tab=text` and approve it. Approving twice
+   gives you one recipe, not two.
+5. Mark a recipe verified, change a quantity, then open its **Versions** tab to
+   compare what changed and restore the earlier one if you prefer it.
+6. Answer something on `/ru/review`, then reload the browser. It is all still
+   there.
 
 ---
 
@@ -74,8 +100,8 @@ at it instead: `CHROMIUM_PATH=/path/to/chromium npm run test:e2e`.
 
 ## Connecting a real database
 
-Demo mode is genuinely usable, but it is single-browser and cookie-sized. To
-keep recipes properly:
+Demo mode is genuinely usable and it persists, but it is tied to one browser
+and one machine's disk. To keep recipes properly, with an account and backups:
 
 **1. Create a Supabase project** at <https://supabase.com/dashboard>.
 
@@ -158,9 +184,39 @@ supabase/
   seed.sql       Generated from src/lib/seed. Do not edit by hand.
 ```
 
+### Writing and saving
+
+The editor, the importer and the review screen all funnel into one place:
+`recipeDraftSchema` in `src/lib/data/recipe-draft.ts`. The editor validates
+against it, the Server Action re-validates against it because a Server Action
+is a public endpoint, and both repositories accept only what it produced.
+
+Saving is a single operation on either backend. In Supabase the whole recipe —
+translations, ingredients, steps, source, evidence — is written by one
+`save_recipe` plpgsql function, so a failure part-way leaves no half-recipe;
+`tests/sql/authoring.sql` proves that against real PostgreSQL. In demo mode the
+overlay file is written whole, to a temporary file and renamed.
+
+Two things can legitimately submit the same write twice: approving an import,
+and replaying a draft you saved with no signal. Both carry an idempotency key
+derived from the content, and the write is recorded against that key, so a
+retry resolves to the recipe that already exists instead of making another.
+
+### Offline
+
+Reading a saved recipe and running a cooking session work with no connection.
+Saving does too, for the two things that are safe to replay — recipe drafts and
+cooking progress. They queue on the device, show as queued rather than as
+saved, and replay when the connection returns. If the server has moved on in
+the meantime the change is parked as a conflict with your copy intact, and you
+are asked which side wins. Nothing else — plans, pantry, imports — is queued:
+a half-working sync is worse than an honest refusal.
+
 Further reading: [ARCHITECTURE.md](./ARCHITECTURE.md) for the design decisions,
 [DATA_MODEL.md](./DATA_MODEL.md) for the schema, [ROADMAP.md](./ROADMAP.md) for
 what is next.
 
 The product name lives in exactly one place, `src/lib/config/app-config.ts`.
-Change it there and it changes everywhere, including the installed PWA.
+Change it there and it changes everywhere, including the installed PWA — which
+is why the repository is called PizzaBase while the app introduces itself as
+Impasto. Deciding between the two is a one-line edit, not a rename.
