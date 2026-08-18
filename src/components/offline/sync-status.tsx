@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
   useTransition,
 } from 'react'
+import { saveCookResultAction } from '@/app/actions/cook'
 import { saveRecipeAction } from '@/app/actions/recipes'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody } from '@/components/ui/primitives'
@@ -56,9 +57,13 @@ export function SyncStatus() {
           const saved = await saveRecipeAction(payload, idempotencyKey)
           return saved.ok ? { ok: true } : { ok: false, error: saved.error }
         },
-        // Cooking progress already lives in local storage and is replayed by
-        // the cooking screen itself; nothing to send here yet.
-        'cook-session': async () => ({ ok: true }),
+        'cook-session': async (payload, idempotencyKey) => {
+          // The session id is derived from the recipe and its start time, so a
+          // replay updates the same evening's record rather than adding one.
+          const saved = await saveCookResultAction(payload)
+          void idempotencyKey
+          return saved.ok ? { ok: true } : { ok: false, error: saved.error }
+        },
       })
       refresh()
       // The page the owner is looking at was rendered before the replay

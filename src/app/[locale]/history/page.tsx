@@ -1,4 +1,5 @@
 import { History } from 'lucide-react'
+import { MediaStrip } from '@/components/media/media-strip'
 import type { Metadata } from 'next'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import type { Locale } from '@/domain'
@@ -76,10 +77,61 @@ export default async function HistoryPage({
                     <Badge tone="neutral">
                       {t('recipe.scale')} ×{session.scaleFactor}
                     </Badge>
+                    {session.versionNumber !== null ? (
+                      <Link href={`/recipes/${session.recipeId}/versions`}>
+                        <Badge tone="accent">
+                          {t('cooking.usedVersion', { number: session.versionNumber })}
+                        </Badge>
+                      </Link>
+                    ) : null}
                   </div>
+
+                  {/* The scores that were actually given, in the order the
+                      result screen asks for them. */}
+                  {session.tasteRating || session.crustRating || session.handlingRating ? (
+                    <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
+                      {(
+                        [
+                          ['taste', session.tasteRating],
+                          ['crust', session.crustRating],
+                          ['handling', session.handlingRating],
+                        ] as const
+                      ).map(([key, score]) =>
+                        score ? (
+                          <div key={key} className="flex gap-1">
+                            <dt>{t(`cooking.${key}`)}:</dt>
+                            <dd className="tabular font-medium text-ink">{score}/5</dd>
+                          </div>
+                        ) : null,
+                      )}
+                    </dl>
+                  ) : null}
+
+                  {session.actualActiveMinutes !== null ||
+                  session.actualPassiveMinutes !== null ? (
+                    <p className="tabular text-xs text-ink-faint">
+                      {session.actualActiveMinutes !== null
+                        ? `${t('cooking.activeWork')}: ${session.actualActiveMinutes}′`
+                        : ''}
+                      {session.actualPassiveMinutes !== null
+                        ? ` · ${t('cooking.waiting')}: ${session.actualPassiveMinutes}′`
+                        : ''}
+                    </p>
+                  ) : null}
+
+                  {session.media.length > 0 ? (
+                    <MediaStrip media={session.media} label={t('media.photos')} />
+                  ) : null}
 
                   {session.notes ? (
                     <p className="text-sm text-ink-muted">{session.notes}</p>
+                  ) : null}
+
+                  {session.nextTime ? (
+                    <p className="rounded-lg bg-paper-sunken px-3 py-2 text-sm text-ink">
+                      <span className="text-xs text-ink-faint">{t('cooking.nextTime')}: </span>
+                      {session.nextTime}
+                    </p>
                   ) : null}
                 </CardBody>
               </Card>

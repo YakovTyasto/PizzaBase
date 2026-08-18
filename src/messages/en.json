@@ -335,7 +335,22 @@
     "addNote": "Notes",
     "saveSession": "Save this cook",
     "abandon": "Discard session",
-    "offlineNote": "Your progress is saved on this device and will sync when you are back online."
+    "offlineNote": "Your progress is saved on this device and will sync when you are back online.",
+    "resultTitle": "How did it turn out?",
+    "resultHint": "Recorded together with the recipe version and scale you actually cooked.",
+    "overall": "Overall",
+    "taste": "Taste",
+    "crust": "Crust and crumb",
+    "handling": "How the dough handled",
+    "actualActive": "Actual hands-on time (min)",
+    "actualPassive": "Actual waiting time (min)",
+    "resultNotes": "Note",
+    "nextTime": "What to change next time",
+    "nextTimeHint": "For example: less yeast, longer proof",
+    "resultPhotos": "Photos",
+    "saveResult": "Save the result",
+    "resultSaved": "Result saved.",
+    "usedVersion": "Cooked from version {number}"
   },
   "history": {
     "title": "Cook history",

@@ -31,6 +31,7 @@ import {
   useNow,
   useTimers,
 } from './timers'
+import { CookResult } from './cook-result'
 import { useWakeLock } from './use-wake-lock'
 
 export interface CookStep {
@@ -55,11 +56,22 @@ export interface CookStep {
  */
 export function CookingMode({
   recipeId,
+  recipeSlug,
   recipeName,
+  versionId,
+  scaleFactor,
+  plannedActiveMinutes,
+  plannedPassiveMinutes,
   steps,
 }: {
   recipeId: string
+  recipeSlug: string
   recipeName: string
+  /** The immutable version being cooked, so the result can point at it. */
+  versionId: string | null
+  scaleFactor: string
+  plannedActiveMinutes: number | null
+  plannedPassiveMinutes: number | null
   steps: CookStep[]
 }) {
   const t = useTranslations()
@@ -367,12 +379,25 @@ export function CookingMode({
       </div>
 
       {isDone ? (
-        <Card className="border-basil">
-          <CardBody>
-            <p className="font-medium text-basil">{t('cooking.complete')}</p>
-            <p className="mt-1 text-sm text-ink-muted">{t('cooking.offlineNote')}</p>
-          </CardBody>
-        </Card>
+        <div className="space-y-4">
+          <Card className="border-basil">
+            <CardBody>
+              <p className="font-medium text-basil">{t('cooking.complete')}</p>
+              <p className="mt-1 text-sm text-ink-muted">{t('cooking.offlineNote')}</p>
+            </CardBody>
+          </Card>
+
+          <CookResult
+            recipeId={recipeId}
+            recipeSlug={recipeSlug}
+            versionId={versionId}
+            scaleFactor={scaleFactor}
+            startedAt={progress.startedAt}
+            completedStepIds={progress.completedStepIds}
+            plannedActiveMinutes={plannedActiveMinutes}
+            plannedPassiveMinutes={plannedPassiveMinutes}
+          />
+        </div>
       ) : null}
     </div>
   )

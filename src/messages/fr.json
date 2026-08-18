@@ -335,7 +335,22 @@
     "addNote": "Notes",
     "saveSession": "Enregistrer cette cuisson",
     "abandon": "Abandonner la session",
-    "offlineNote": "Votre progression est enregistrée sur cet appareil et sera synchronisée au retour du réseau."
+    "offlineNote": "Votre progression est enregistrée sur cet appareil et sera synchronisée au retour du réseau.",
+    "resultTitle": "Comment est-ce sorti ?",
+    "resultHint": "Enregistré avec la version de la recette et l’échelle réellement utilisées.",
+    "overall": "Note globale",
+    "taste": "Goût",
+    "crust": "Croûte et mie",
+    "handling": "Comportement de la pâte",
+    "actualActive": "Temps actif réel (min)",
+    "actualPassive": "Attente réelle (min)",
+    "resultNotes": "Note",
+    "nextTime": "À changer la prochaine fois",
+    "nextTimeHint": "Par exemple : moins de levure, pointage plus long",
+    "resultPhotos": "Photos",
+    "saveResult": "Enregistrer le résultat",
+    "resultSaved": "Résultat enregistré.",
+    "usedVersion": "Cuisiné à partir de la version {number}"
   },
   "history": {
     "title": "Historique",
