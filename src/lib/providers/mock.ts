@@ -95,3 +95,81 @@ export function mockExtraction(input: RecipeExtractionInput): RecipeExtraction {
     overallConfidence: 0.55,
   }
 }
+
+/**
+ * A deterministic fixture for the photo importer.
+ *
+ * Modelled on what actually goes wrong when you photograph a recipe card: the
+ * dish and most quantities are legible, one figure runs off the edge of the
+ * frame, and the handwriting is ambiguous where it matters. A fixture where
+ * everything reads perfectly would let the review screen look finished while
+ * being untested against the case it exists for.
+ */
+export function mockPhotoExtraction(): RecipeExtraction {
+  return {
+    title: 'Tomato sauce from a recipe card',
+    summary: 'A mock extraction used when no vision provider is configured.',
+    detectedLanguage: 'en',
+    type: 'sauce',
+    style: null,
+    yieldCount: '500',
+    yieldUnit: 'g',
+    ballWeightG: null,
+    ingredients: [
+      {
+        name: 'Whole peeled tomatoes',
+        amount: { kind: 'exact', value: '400', unit: 'g' },
+        optional: false,
+        group: null,
+        note: null,
+        startSeconds: null,
+      },
+      {
+        name: 'Sea salt',
+        amount: { kind: 'qualitative', unit: 'to_taste' },
+        optional: false,
+        group: null,
+        note: null,
+        startSeconds: null,
+      },
+      {
+        name: 'Olive oil',
+        // Cropped by the edge of the photograph. The point of the fixture.
+        amount: { kind: 'unknown', reason: 'The amount is cut off at the edge of the photo.' },
+        optional: false,
+        group: null,
+        note: null,
+        startSeconds: null,
+      },
+      {
+        name: 'Basil',
+        amount: { kind: 'qualitative', unit: 'to_taste' },
+        optional: true,
+        group: null,
+        note: 'Handwriting unclear; could be a quantity.',
+        startSeconds: null,
+      },
+    ],
+    steps: [
+      {
+        instruction: 'Crush the tomatoes by hand and season.',
+        phase: 'mix',
+        activeMinutes: 10,
+        waitMinMinutes: 0,
+        waitMaxMinutes: 0,
+        temperatureC: null,
+        sensoryCues: 'Leave it coarse, not smooth.',
+        startSeconds: null,
+      },
+    ],
+    equipment: ['Bowl'],
+    conflicts: [
+      {
+        field: 'basil amount',
+        description:
+          'The card may read "2 leaves" or "2 sprigs"; the handwriting does not distinguish them.',
+      },
+    ],
+    overallConfidence: 0.45,
+  }
+}

@@ -383,7 +383,10 @@
     "jobFailed": "Import failed",
     "noTranscript": "No transcript is available for this video.",
     "noTranscriptHint": "Paste it manually, or fill the recipe in by hand.",
-    "privacyNote": "The transcript is used only to build the recipe and is not stored afterwards."
+    "privacyNote": "The transcript is used only to build the recipe and is not stored afterwards.",
+    "photoPrivacy": "The photo is compressed in your browser, stripped of metadata including location, and sent only to be read.",
+    "keepPhoto": "Keep this photo with the recipe",
+    "keepPhotoHint": "By default the photo is used only to read the recipe and is not stored."
   },
   "scanner": {
     "title": "Scan a product",

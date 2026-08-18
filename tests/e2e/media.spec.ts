@@ -1,8 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { deflateSync } from 'node:zlib'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
+import { pngFixture, textFixture } from './fixtures/png'
 
 /**
  * Photos, end to end in demo mode.
@@ -11,62 +8,6 @@ import path from 'node:path'
  * and kept in IndexedDB -- so these tests are also the proof that the local
  * path really persists rather than looking like it does until a reload.
  */
-
-const FIXTURES = mkdtempSync(path.join(tmpdir(), 'impasto-media-'))
-
-/** A real PNG, written once so the tests do not depend on a checked-in binary. */
-function pngFixture(name: string, size = 64): string {
-  const file = path.join(FIXTURES, name)
-  writeFileSync(file, Buffer.from(makePng(size), 'base64'))
-  return file
-}
-
-function makePng(size: number): string {
-  // A minimal but genuine PNG: signature, IHDR, one IDAT, IEND. Written by
-  // hand so the fixture is a real image the browser will decode, not a stub.
-  const crcTable: number[] = []
-  for (let n = 0; n < 256; n += 1) {
-    let c = n
-    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
-    crcTable[n] = c >>> 0
-  }
-  const crc = (buffer: Buffer) => {
-    let c = 0xffffffff
-    for (const byte of buffer) c = crcTable[(c ^ byte) & 0xff]! ^ (c >>> 8)
-    return (c ^ 0xffffffff) >>> 0
-  }
-  const chunk = (type: string, data: Buffer) => {
-    const length = Buffer.alloc(4)
-    length.writeUInt32BE(data.length)
-    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
-    const checksum = Buffer.alloc(4)
-    checksum.writeUInt32BE(crc(body))
-    return Buffer.concat([length, body, checksum])
-  }
-
-  const ihdr = Buffer.alloc(13)
-  ihdr.writeUInt32BE(size, 0)
-  ihdr.writeUInt32BE(size, 4)
-  ihdr[8] = 8 // bit depth
-  ihdr[9] = 2 // truecolour
-  const raw = Buffer.alloc(size * (size * 3 + 1))
-  for (let y = 0; y < size; y += 1) {
-    const row = y * (size * 3 + 1)
-    raw[row] = 0
-    for (let x = 0; x < size; x += 1) {
-      raw[row + 1 + x * 3] = (x * 4) % 256
-      raw[row + 2 + x * 3] = (y * 4) % 256
-      raw[row + 3 + x * 3] = 128
-    }
-  }
-  const png = Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', ihdr),
-    chunk('IDAT', deflateSync(raw)),
-    chunk('IEND', Buffer.alloc(0)),
-  ])
-  return png.toString('base64')
-}
 
 async function createRecipeWithPhoto(
   page: import('@playwright/test').Page,
@@ -170,8 +111,7 @@ test.describe('recipe photos', () => {
   })
 
   test('refuses a file that is not an image, and says why', async ({ page }) => {
-    const notAnImage = path.join(FIXTURES, 'notes.txt')
-    writeFileSync(notAnImage, 'flour, water, salt')
+    const notAnImage = textFixture('notes.txt', 'flour, water, salt')
 
     await page.goto('/ru/recipes/new?type=sauce')
     await page.getByRole('tab', { name: 'Фотографии' }).click()

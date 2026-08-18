@@ -128,6 +128,21 @@ export interface RecipeExtractionProvider {
 // Translation
 // ---------------------------------------------------------------------------
 
+/**
+ * Reads a recipe out of a photograph or a screenshot.
+ *
+ * Separate from `VisionProductProvider`, which reads a package label: the
+ * prompts, the schema and the failure modes have nothing in common, and
+ * merging them would mean one system prompt trying to be good at both.
+ */
+export interface RecipeVisionProvider {
+  readonly status: ProviderStatus
+  extractFromImage<T>(
+    image: { data: Uint8Array; mimeType: string },
+    schema: z.ZodType<T>,
+  ): Promise<T>
+}
+
 export interface TranslationRequest {
   text: string
   from: string

@@ -9,6 +9,8 @@ import { useRouter } from '@/i18n/navigation'
 import { Select } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, SectionHeading } from '@/components/ui/primitives'
+import { uploadMediaAction } from '@/app/actions/media'
+import { putBlob } from '@/lib/media/idb'
 import { formatTimecode } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -21,9 +23,12 @@ import { cn } from '@/lib/utils'
  */
 export function CandidateReview({
   candidate,
+  sourcePhoto,
   onDiscard,
 }: {
   candidate: ImportCandidate
+  /** The photo this candidate came from, when it came from one. */
+  sourcePhoto?: { id: string; blob: Blob } | null
   onDiscard: () => void
 }) {
   const t = useTranslations()
@@ -38,6 +43,9 @@ export function CandidateReview({
   const [resolved, setResolved] = useState<Record<string, string>>({})
   const [createNew, setCreateNew] = useState<string[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
+  /* Off by default: keeping the original photograph is the owner's decision,
+     not a side effect of using it to read the recipe. */
+  const [keepSourcePhoto, setKeepSourcePhoto] = useState(false)
   const [catalog, setCatalog] = useState<{ slug: string; name: string }[]>([])
 
   // Ask the server which catalog entries these names correspond to. Matching
@@ -75,12 +83,32 @@ export function CandidateReview({
   const approve = () => {
     setSaveError(null)
     startTransition(async () => {
+      let media: { id: string; storagePath: string | null }[] = []
+
+      if (sourcePhoto && keepSourcePhoto) {
+        // Stored the same way any other recipe photo is: locally in demo mode,
+        // in the private bucket when one is configured.
+        await putBlob(sourcePhoto.id, sourcePhoto.blob)
+        const uploaded = await uploadMediaAction({
+          id: sourcePhoto.id,
+          bytes: await sourcePhoto.blob.arrayBuffer(),
+          contentType: sourcePhoto.blob.type || 'image/jpeg',
+        })
+        if (uploaded.ok) {
+          media = [{ id: sourcePhoto.id, storagePath: uploaded.storagePath }]
+        } else {
+          setSaveError(uploaded.error)
+          return
+        }
+      }
+
       const result = await approveImportAction({
         extraction,
         sourceUrl: candidate.sourceUrl,
         locale,
         resolved,
         createNew,
+        media,
       })
       // Navigate only on a real save; nothing here claims success otherwise.
       if (result.ok) router.push(`/recipes/${result.slug}`)
@@ -386,6 +414,21 @@ export function CandidateReview({
               ) : null}
             </CardBody>
           </Card>
+
+          {sourcePhoto ? (
+            <label className="flex items-start gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={keepSourcePhoto}
+                onChange={(event) => setKeepSourcePhoto(event.target.checked)}
+                className="mt-0.5 size-4 accent-[var(--color-tomato)]"
+              />
+              <span>
+                {t('import.keepPhoto')}
+                <span className="block text-xs text-ink-faint">{t('import.keepPhotoHint')}</span>
+              </span>
+            </label>
+          ) : null}
 
           <div className="flex flex-wrap gap-2">
             <Button

@@ -1,16 +1,18 @@
 'use client'
 
-import { AlertTriangle, ExternalLink, Info, Loader2 } from 'lucide-react'
+import { AlertTriangle, Camera, ExternalLink, Info, Loader2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import {
   type ImportCandidate,
+  importFromPhotoAction,
   importFromTextAction,
   importFromYouTubeAction,
 } from '@/app/actions/import'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Label, Textarea } from '@/components/ui/primitives'
 import { Link } from '@/i18n/navigation'
+import { ImageRejectedError, prepareImage } from '@/lib/media/compress'
 import { cn } from '@/lib/utils'
 import { CandidateReview } from './candidate-review'
 
@@ -41,6 +43,10 @@ export function ImportWorkbench({
   const [url, setUrl] = useState('')
   const [text, setText] = useState('')
   const [candidate, setCandidate] = useState<ImportCandidate | null>(null)
+  const photoRef = useRef<HTMLInputElement>(null)
+  const [photoProgress, setPhotoProgress] = useState<number | null>(null)
+  /** Kept only so the review screen can offer to attach it as the source. */
+  const [sourcePhoto, setSourcePhoto] = useState<{ id: string; blob: Blob } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [needsManual, setNeedsManual] = useState(false)
 
@@ -53,6 +59,34 @@ export function ImportWorkbench({
       else {
         setError(result.error)
         setNeedsManual(Boolean(result.needsManualTranscript))
+      }
+    })
+  }
+
+  const runPhoto = (file: File) => {
+    setError(null)
+    setPhotoProgress(0)
+    startTransition(async () => {
+      try {
+        // Shrunk before it is sent: a Vision call is charged by image size,
+        // and the original would cost more without reading any better.
+        const prepared = await prepareImage(file, setPhotoProgress)
+        const result = await importFromPhotoAction({
+          bytes: await prepared.blob.arrayBuffer(),
+          contentType: prepared.type,
+        })
+        if (result.ok) {
+          setCandidate(result.candidate)
+          setSourcePhoto({ id: crypto.randomUUID(), blob: prepared.blob })
+        } else {
+          setError(result.error)
+        }
+      } catch (cause) {
+        setError(
+          cause instanceof ImageRejectedError ? t(`media.reject.${cause.reason}`) : t('errors.generic'),
+        )
+      } finally {
+        setPhotoProgress(null)
       }
     })
   }
@@ -70,8 +104,10 @@ export function ImportWorkbench({
     return (
       <CandidateReview
         candidate={candidate}
+        sourcePhoto={sourcePhoto}
         onDiscard={() => {
           setCandidate(null)
+          setSourcePhoto(null)
           setError(null)
         }}
       />
@@ -183,12 +219,53 @@ export function ImportWorkbench({
 
       {tab === 'photo' ? (
         <Card>
-          <CardBody className="space-y-2">
+          <CardBody className="space-y-3">
             <p className="text-sm text-ink-muted">{t('import.uploadPhotoHint', { size: '8 MB' })}</p>
-            <p className="flex items-start gap-2 rounded-lg bg-amber-soft px-3 py-2 text-sm text-amber">
-              <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {t('errors.providerDisabledHint', { key: 'OPENAI_API_KEY' })}
-            </p>
+
+            <div>
+              <input
+                ref={photoRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                // `capture` opens the camera directly on a phone and is
+                // ignored on a desktop, where the file picker is right.
+                capture="environment"
+                className="sr-only"
+                aria-label={t('import.uploadPhoto')}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  if (file) runPhoto(file)
+                }}
+              />
+              <Button onClick={() => photoRef.current?.click()} disabled={pending}>
+                {pending ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Camera aria-hidden />
+                )}
+                {pending ? t('import.analyzing') : t('import.uploadPhoto')}
+              </Button>
+            </div>
+
+            {photoProgress !== null ? (
+              <div
+                className="h-1.5 w-full overflow-hidden rounded-full bg-paper-sunken"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(photoProgress * 100)}
+                aria-label={t('media.processing')}
+              >
+                <div
+                  className="h-full bg-tomato transition-[width]"
+                  style={{ width: `${Math.round(photoProgress * 100)}%` }}
+                />
+              </div>
+            ) : null}
+
+            <p className="text-xs text-ink-faint">{t('import.photoPrivacy')}</p>
+
             <p className="text-xs text-ink-faint">
               <Link
                 href="/scan"

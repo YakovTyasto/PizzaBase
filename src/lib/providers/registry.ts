@@ -15,11 +15,12 @@ import {
   type TranscriptProvider,
   type TranslationProvider,
   type TranslationRequest,
+  type RecipeVisionProvider,
   type VisionProductProvider,
   type VisionProductResult,
 } from './types'
 import { visionProductSchema } from './vision-schema'
-import { mockExtraction } from './mock'
+import { mockExtraction, mockPhotoExtraction } from './mock'
 
 /**
  * Provider selection.
@@ -129,6 +130,70 @@ class MockExtractionProvider implements RecipeExtractionProvider {
   async extract<T>(input: RecipeExtractionInput, schema: z.ZodType<T>): Promise<T> {
     return schema.parse(mockExtraction(input))
   }
+}
+
+class OpenAIRecipeVisionProvider implements RecipeVisionProvider {
+  get status() {
+    return openaiStatus('OpenAI recipe vision')
+  }
+
+  async extractFromImage<T>(
+    image: { data: Uint8Array; mimeType: string },
+    schema: z.ZodType<T>,
+  ): Promise<T> {
+    return structuredCompletion({
+      // The same rule as the text extractor, stated for the harder case: a
+      // photograph invites guessing in a way a transcript does not, because a
+      // quantity can be blurred, cropped or hidden behind a hand.
+      system:
+        `${EXTRACTION_SYSTEM_PROMPT}
+
+` +
+        'You are reading a photograph or screenshot of a recipe. Transcribe only ' +
+        'what is legible. If a quantity is cut off, blurred, or absent, return an ' +
+        'unknown amount with the reason -- never estimate it from the others, and ' +
+        'never infer a typical value for the dish. The image has no timecodes, so ' +
+        'every startSeconds field is null.',
+      content: [
+        {
+          type: 'input_text',
+          text: 'Extract the recipe shown in this image.',
+        },
+        imagePart(image.data, image.mimeType),
+      ],
+      schema,
+      schemaName: 'recipe_from_image',
+      maxOutputTokens: 6000,
+    })
+  }
+}
+
+/**
+ * Fixture used when no key is configured.
+ *
+ * Deliberately *not* the transcript fixture: a photo of a handwritten card
+ * loses different things than a video does, so this one is missing a quantity
+ * the camera cropped and has a lower confidence to match.
+ */
+class MockRecipeVisionProvider implements RecipeVisionProvider {
+  readonly status = {
+    name: 'Mock recipe vision',
+    available: true,
+    requiredKey: 'OPENAI_API_KEY',
+  }
+
+  async extractFromImage<T>(
+    _image: { data: Uint8Array; mimeType: string },
+    schema: z.ZodType<T>,
+  ): Promise<T> {
+    return schema.parse(mockPhotoExtraction())
+  }
+}
+
+export function getRecipeVisionProvider(): RecipeVisionProvider {
+  return serverEnv().openaiApiKey
+    ? new OpenAIRecipeVisionProvider()
+    : new MockRecipeVisionProvider()
 }
 
 export function getExtractionProvider(): RecipeExtractionProvider {

@@ -383,7 +383,10 @@
     "jobFailed": "L'import a échoué",
     "noTranscript": "Aucune transcription n'est disponible pour cette vidéo.",
     "noTranscriptHint": "Collez-la manuellement, ou saisissez la recette à la main.",
-    "privacyNote": "La transcription sert uniquement à construire la recette et n'est pas conservée ensuite."
+    "privacyNote": "La transcription sert uniquement à construire la recette et n'est pas conservée ensuite.",
+    "photoPrivacy": "La photo est compressée dans le navigateur, débarrassée de ses métadonnées (dont la position) et envoyée uniquement pour être lue.",
+    "keepPhoto": "Conserver cette photo avec la recette",
+    "keepPhotoHint": "Par défaut, la photo sert seulement à lire la recette et n’est pas conservée."
   },
   "scanner": {
     "title": "Scanner un produit",

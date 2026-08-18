@@ -8,7 +8,11 @@ import {
   recipeExtractionSchema,
   validateExtraction,
 } from '@/lib/providers/extraction-schema'
-import { getExtractionProvider, getTranscriptProvider } from '@/lib/providers/registry'
+import {
+  getExtractionProvider,
+  getRecipeVisionProvider,
+  getTranscriptProvider,
+} from '@/lib/providers/registry'
 import {
   InvalidYouTubeUrlError,
   parseYouTubeUrl,
@@ -20,6 +24,7 @@ import { ProviderDisabledError, ProviderError } from '@/lib/providers/types'
 import { revalidatePath } from 'next/cache'
 import type { Locale } from '@/domain'
 import { getRepository } from '@/lib/data'
+import { sniffImageType } from '@/lib/media/signature'
 import {
   buildCatalog,
   idempotencyKeyFor,
@@ -54,6 +59,8 @@ export type ImportResult =
   | { ok: false; error: string; needsManualTranscript?: boolean; requiredKey?: string }
 
 const MAX_TEXT_LENGTH = 100_000
+/** Vision is billed per image; anything larger is waste, not detail. */
+const MAX_VISION_BYTES = 2 * 1024 * 1024
 
 function describeError(error: unknown): ImportResult {
   if (error instanceof ProviderDisabledError) {
@@ -172,6 +179,60 @@ export async function importFromTextAction(input: unknown): Promise<ImportResult
 }
 
 
+const photoSchema = z.object({
+  bytes: z.instanceof(ArrayBuffer),
+  contentType: z.string().trim().max(100),
+})
+
+/**
+ * Reads a recipe out of a photograph.
+ *
+ * The image was already compressed in the browser, which matters here beyond
+ * bandwidth: a Vision call is billed by image size, so sending the 12 MB
+ * original instead of the 200 KB version would cost real money for no extra
+ * legibility. The bytes are re-checked on this side anyway, because a Server
+ * Action is a public endpoint.
+ *
+ * Nothing is saved. The result is a candidate for the same review screen the
+ * other importers use, and it inherits their rule: an amount the photo does
+ * not show stays unknown.
+ */
+export async function importFromPhotoAction(input: unknown): Promise<ImportResult> {
+  const parsed = photoSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'That image could not be read' }
+
+  const bytes = new Uint8Array(parsed.data.bytes)
+  if (bytes.byteLength === 0) return { ok: false, error: 'The image is empty' }
+  if (bytes.byteLength > MAX_VISION_BYTES) {
+    return { ok: false, error: 'That image is too large to analyse' }
+  }
+
+  const sniffed = sniffImageType(bytes.slice(0, 32))
+  if (!sniffed) return { ok: false, error: 'That file is not a JPEG, PNG or WebP' }
+
+  const provider = getRecipeVisionProvider()
+
+  try {
+    const extraction = await provider.extractFromImage(
+      { data: bytes, mimeType: sniffed },
+      recipeExtractionSchema,
+    )
+    return {
+      ok: true,
+      candidate: {
+        extraction,
+        issues: validateExtraction(extraction),
+        sourceUrl: null,
+        videoId: null,
+        provider: provider.status.name,
+        hasTimecodes: false,
+      },
+    }
+  } catch (error) {
+    return describeError(error)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Approval
 // ---------------------------------------------------------------------------
@@ -225,6 +286,11 @@ const approveSchema = z.object({
   resolved: z.record(z.string(), z.string()).default({}),
   /** Extracted names the owner asked to create as new canonical ingredients. */
   createNew: z.array(z.string().max(200)).max(100).default([]),
+  /** The source photograph, when the owner chose to keep it. */
+  media: z
+    .array(z.object({ id: z.string().max(100), storagePath: z.string().max(500).nullable() }))
+    .max(4)
+    .default([]),
 })
 
 export type ApproveResult =
@@ -243,7 +309,7 @@ export async function approveImportAction(input: unknown): Promise<ApproveResult
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'The import is not valid' }
   }
-  const { extraction, sourceUrl, locale, resolved, createNew } = parsed.data
+  const { extraction, sourceUrl, locale, resolved, createNew, media } = parsed.data
 
   // Refuse to save something the validator considers broken.
   const issues = validateExtraction(extraction)
@@ -294,12 +360,21 @@ export async function approveImportAction(input: unknown): Promise<ApproveResult
     return { ok: false, error: 'Match at least one ingredient to the catalog first' }
   }
 
-  const draft = importToDraft({
-    extraction: usable,
-    resolved: resolvedSlugs,
-    sourceUrl,
-    locale: locale as Locale,
-  })
+  const draft = {
+    ...importToDraft({
+      extraction: usable,
+      resolved: resolvedSlugs,
+      sourceUrl,
+      locale: locale as Locale,
+    }),
+    media: media.map((photo, index) => ({
+      id: photo.id,
+      storagePath: photo.storagePath,
+      url: null,
+      alt: { ru: '', en: '', fr: '' },
+      isCover: index === 0,
+    })),
+  }
 
   // The key travels with the save, so even a double submit that races past the
   // check above resolves to one recipe.
