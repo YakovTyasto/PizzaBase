@@ -678,5 +678,20 @@
       "yield": "Yield"
     },
     "savedConfirm": "Experiment saved."
+  },
+  "notify": {
+    "why": "Notifications tell you when a timer finished or a fermentation stage is due.",
+    "enable": "Enable notifications",
+    "scopeForeground": "A notification appears while the app is open. Timers run on the clock, so they stay correct even if the tab was closed.",
+    "scopeBackground": "Notifications work while the app is open. Background delivery depends on the browser and, on iOS, requires installing to the home screen.",
+    "granted": "Notifications are on.",
+    "grantedForeground": "Notifications are on — they appear while the app is open.",
+    "denied": "Notifications are blocked in the browser. Timers and the planner work as usual.",
+    "unsupported": "This browser does not support notifications. Timers and the planner work as usual.",
+    "timerDone": "Timer finished",
+    "timerBody": "{label} — time is up.",
+    "stageDue": "Time for the next stage",
+    "stageBody": "{label} — {time}.",
+    "inPage": "Timer finished — the notification could not be shown."
   }
 }

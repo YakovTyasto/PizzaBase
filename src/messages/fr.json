@@ -678,5 +678,20 @@
       "yield": "Rendement"
     },
     "savedConfirm": "Expérience enregistrée."
+  },
+  "notify": {
+    "why": "Les notifications préviennent quand un minuteur se termine ou qu’une étape de fermentation arrive.",
+    "enable": "Activer les notifications",
+    "scopeForeground": "La notification apparaît pendant que l’application est ouverte. Les minuteurs suivent l’horloge et restent justes même si l’onglet a été fermé.",
+    "scopeBackground": "Les notifications fonctionnent pendant que l’application est ouverte. La livraison en arrière-plan dépend du navigateur et, sur iOS, nécessite une installation sur l’écran d’accueil.",
+    "granted": "Notifications activées.",
+    "grantedForeground": "Notifications activées — elles apparaissent pendant que l’application est ouverte.",
+    "denied": "Les notifications sont bloquées dans le navigateur. Les minuteurs et le planificateur fonctionnent normalement.",
+    "unsupported": "Ce navigateur ne prend pas en charge les notifications. Les minuteurs et le planificateur fonctionnent normalement.",
+    "timerDone": "Minuteur terminé",
+    "timerBody": "{label} — le temps est écoulé.",
+    "stageDue": "Passez à l’étape suivante",
+    "stageBody": "{label} — {time}.",
+    "inPage": "Minuteur terminé — la notification n’a pas pu être affichée."
   }
 }

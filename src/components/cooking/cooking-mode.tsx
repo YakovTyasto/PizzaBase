@@ -14,10 +14,12 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { NotificationOptIn } from '@/components/notify/notification-opt-in'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input } from '@/components/ui/primitives'
 import { useHydrated } from '@/lib/client-env'
+import { notify } from '@/lib/notify/local'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import {
@@ -118,6 +120,26 @@ export function CookingMode({
   )
 
   const [timerMinutes, setTimerMinutes] = useState('')
+
+  // Timers that have already announced themselves. A ref rather than state:
+  // this must not cause a render, and it must survive the one-second tick.
+  const announced = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    for (const timer of timers) {
+      if (announced.current.has(timer.id)) continue
+      if (remainingMs(timer, Date.now()) > 0) continue
+
+      announced.current.add(timer.id)
+      // The card already turns red and says "finished"; the notification is
+      // the enhancement, and `notify` reporting false simply means the page
+      // itself is the only place it shows.
+      notify({
+        title: t('notify.timerDone'),
+        body: t('notify.timerBody', { label: timer.label }),
+        tag: `timer-${timer.id}`,
+      })
+    }
+  }, [timers, now, t])
 
   if (!hydrated || !step) {
     return <p className="text-sm text-ink-muted">{t('common.loading')}</p>
@@ -281,6 +303,9 @@ export function CookingMode({
           </div>
           <Button
             variant="outline"
+            // Icon-only, so it needs a name of its own: a screen reader
+            // otherwise announces nothing but "button".
+            aria-label={t('cooking.startTimer')}
             onClick={() => {
               const minutes = Number(timerMinutes)
               if (minutes > 0) {
@@ -293,6 +318,8 @@ export function CookingMode({
             <Plus aria-hidden />
           </Button>
         </div>
+
+        <NotificationOptIn compact />
 
         {timers.length > 0 ? (
           <ul className="space-y-2">

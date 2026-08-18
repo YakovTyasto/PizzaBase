@@ -11,6 +11,7 @@ import {
   planToIcs,
   totalWindowMinutes,
 } from '@/domain'
+import { StageReminders } from '@/components/notify/stage-reminders'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardBody, Input, Label } from '@/components/ui/primitives'
 import { appConfig } from '@/lib/config/app-config'
@@ -156,6 +157,19 @@ export function FermentationPlanner({
               </span>
             </p>
           ) : null}
+
+          {/*
+            Stage reminders. The schedule is absolute times, so a stage that
+            fell due while the tab was closed is still shown as due -- the
+            notification is the enhancement, never the source of truth.
+          */}
+          <StageReminders
+            stages={plan.steps.map((scheduled) => ({
+              id: scheduled.stepId,
+              at: scheduled.startAt,
+              label: stepsById.get(scheduled.stepId)?.instruction ?? scheduled.stepId,
+            }))}
+          />
 
           <ol className="space-y-2">
             {plan.steps.map((scheduled) => {
