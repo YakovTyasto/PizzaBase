@@ -139,8 +139,40 @@ describe('magic-link callback', () => {
       error: null,
     })
 
-    const response = await GET(callbackRequest('?code=abc&next=https%3A%2F%2Fevil.test'))
-    expect(response.headers.get('location')).toBe('https://example.test/')
+    // Every spelling of "somewhere else", including the ones that begin with a
+    // slash and so survive a `startsWith('/')` check.
+    for (const attack of [
+      'https://evil.test',
+      '//evil.test',
+      '/\\evil.test',
+      '////evil.test',
+      'javascript:alert(1)',
+    ]) {
+      const response = await GET(callbackRequest(`?code=abc&next=${encodeURIComponent(attack)}`))
+      // The default locale's home page: a route that exists, rather than `/`,
+      // which only ever worked because the proxy bounced it onwards.
+      expect(response.headers.get('location'), attack).toBe('https://example.test/ru')
+    }
+  })
+
+  it('sends the owner to the localized page they asked for', async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { email: 'owner@example.com' } },
+      error: null,
+    })
+
+    const response = await GET(callbackRequest('?code=abc&next=%2Fen%2Frecipes'))
+    expect(response.headers.get('location')).toBe('https://example.test/en/recipes')
+  })
+
+  it('sends a failure back to the login page in the right language', async () => {
+    exchangeCodeForSession.mockResolvedValue({ data: {}, error: { message: 'expired' } })
+
+    // The callback is outside the locale tree, so it has to build this itself.
+    const response = await GET(callbackRequest('?code=abc&next=%2Ffr%2Fplan'))
+    expect(response.headers.get('location')).toBe(
+      'https://example.test/fr/login?error=exchange_failed',
+    )
   })
 
   it('sends a failed exchange back to sign-in', async () => {

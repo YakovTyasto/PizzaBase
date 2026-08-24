@@ -134,6 +134,37 @@ export function isReadOnly(): boolean {
   return storageMode() === 'demo-readonly'
 }
 
+/**
+ * The bare origin of a configured URL, or null when it is not a URL at all.
+ *
+ * `NEXT_PUBLIC_APP_URL` is joined with `/auth/callback` to build the magic-link
+ * destination, so anything after the host silently corrupts that link. Copying
+ * the address out of a browser is the obvious way to set this variable, and a
+ * browser is always showing a *page* -- `https://example.com/ru` -- which would
+ * produce `https://example.com/ru/auth/callback`: a 404, and a sign-in that
+ * cannot complete. Normalising here means a paste like that still works, and
+ * `validateStartup` says what was ignored so the variable gets corrected.
+ */
+export function originOf(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  try {
+    return new URL(value).origin
+  } catch {
+    return undefined
+  }
+}
+
+/** True when a configured URL carries anything beyond its origin. */
+export function hasPathBeyondOrigin(value: string | undefined): boolean {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    return url.pathname !== '/' || url.search !== '' || url.hash !== ''
+  } catch {
+    return false
+  }
+}
+
 export interface ServerEnv {
   supabaseUrl?: string
   supabaseAnonKey?: string
@@ -185,7 +216,7 @@ export function serverEnv(): ServerEnv {
     supadataApiKey: data.SUPADATA_API_KEY,
     openFoodFactsUserAgent:
       data.OPENFOODFACTS_USER_AGENT ?? `${appConfig.name}/${appConfig.version}`,
-    appUrl: publicEnv.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+    appUrl: originOf(publicEnv.NEXT_PUBLIC_APP_URL) ?? 'http://localhost:3000',
     demoMode: isDemoMode(),
     storageMode: storageMode(),
     writable: storageMode() !== 'demo-readonly',
@@ -264,6 +295,20 @@ export function validateStartup(): StartupProblem[] {
     problems.push({
       variable: 'NEXT_PUBLIC_APP_URL',
       message: 'Magic-link emails will point at localhost without it.',
+      severity: 'error',
+    })
+  }
+
+  // An origin, not a page. The value is joined with `/auth/callback`, so a
+  // locale or any other path in it produces a link that 404s -- and the sign-in
+  // simply never completes, with nothing on screen to say why. The path is
+  // ignored rather than obeyed; this is what says so.
+  if (hasPathBeyondOrigin(publicEnv.NEXT_PUBLIC_APP_URL)) {
+    problems.push({
+      variable: 'NEXT_PUBLIC_APP_URL',
+      message:
+        `Must be an origin such as ${originOf(publicEnv.NEXT_PUBLIC_APP_URL) ?? 'https://example.com'}, ` +
+        'with no path. Everything after the host is ignored when building the magic-link callback.',
       severity: 'error',
     })
   }

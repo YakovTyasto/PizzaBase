@@ -83,6 +83,14 @@ check_same recipe_translations "${TRANSLATIONS_1}" "${TRANSLATIONS_2}"
 echo "==> Asserting schema invariants"
 "${PSQL[@]}" -d "${DB_NAME}" -v owner_id="'${OWNER_ID}'" -f "${ROOT}/tests/sql/assertions.sql"
 
+echo "==> Checking what a signed-in owner can read through RLS"
+# The other half of the magic-link story: once a session exists, the owner sees
+# their catalog -- and nobody else does. Run as `authenticated`, since RLS does
+# not apply to the superuser the rest of this script uses.
+"${PSQL[@]}" -d "${DB_NAME}" \
+  -c "set request.jwt.claim.sub = '${OWNER_ID}';" \
+  -f "${ROOT}/tests/sql/rls-session.sql"
+
 echo "==> Exercising save_recipe as the signed-in owner"
 # The authoring tests call auth.uid(), so the session must carry a subject
 # claim exactly as PostgREST would set it for a real request.

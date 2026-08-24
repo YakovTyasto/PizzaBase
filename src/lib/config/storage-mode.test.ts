@@ -14,6 +14,9 @@ const ENV_KEYS = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_DEMO_MODE',
+  'NEXT_PUBLIC_APP_URL',
+  'ALLOWED_EMAILS',
+  'NODE_ENV',
   'DEMO_MODE',
   'VERCEL',
   'IMPASTO_DEMO_DIR',
@@ -131,5 +134,69 @@ describe('what the configuration report says about persistence', () => {
     expect(text).not.toMatch(/\/var\/task/)
     expect(text).not.toMatch(/impasto-demo/)
     expect(text).not.toMatch(/ENOENT/)
+  })
+})
+
+/**
+ * `NEXT_PUBLIC_APP_URL` has to be an origin.
+ *
+ * It is joined with `/auth/callback` to build the magic-link destination, so
+ * anything after the host corrupts that link silently. Copying the address out
+ * of a browser is the obvious way to set it, and a browser is always showing a
+ * page -- `https://example.com/ru` -- which would produce
+ * `https://example.com/ru/auth/callback`: a 404, and a sign-in that cannot
+ * complete with nothing on screen to say why.
+ */
+describe('the app URL used to build the magic-link callback', () => {
+  it('is reduced to its origin, so a pasted page address still works', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://pizza-base-nine.vercel.app/ru'
+    process.env.ALLOWED_EMAILS = 'owner@impasto.test'
+    const { serverEnv, resetServerEnvCache } = await load()
+    resetServerEnvCache()
+
+    expect(serverEnv().appUrl).toBe('https://pizza-base-nine.vercel.app')
+    // Which is what makes the callback reachable at all.
+    expect(`${serverEnv().appUrl}/auth/callback`).toBe(
+      'https://pizza-base-nine.vercel.app/auth/callback',
+    )
+  })
+
+  it('says so rather than swallowing the mistake', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://pizza-base-nine.vercel.app/ru'
+    process.env.ALLOWED_EMAILS = 'owner@impasto.test'
+    const { validateStartup, resetServerEnvCache } = await load()
+    resetServerEnvCache()
+
+    const problem = validateStartup().find((p) => p.variable === 'NEXT_PUBLIC_APP_URL')
+    expect(problem?.severity).toBe('error')
+    expect(problem?.message).toMatch(/origin/i)
+  })
+
+  it('accepts a bare origin without complaint', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://pizza-base-nine.vercel.app'
+    process.env.ALLOWED_EMAILS = 'owner@impasto.test'
+    const { validateStartup, serverEnv, resetServerEnvCache } = await load()
+    resetServerEnvCache()
+
+    expect(serverEnv().appUrl).toBe('https://pizza-base-nine.vercel.app')
+    expect(validateStartup().find((p) => p.variable === 'NEXT_PUBLIC_APP_URL')).toBeUndefined()
+  })
+
+  it('treats a trailing slash as the origin it is', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://pizza-base-nine.vercel.app/'
+    process.env.ALLOWED_EMAILS = 'owner@impasto.test'
+    const { validateStartup, serverEnv, resetServerEnvCache } = await load()
+    resetServerEnvCache()
+
+    expect(serverEnv().appUrl).toBe('https://pizza-base-nine.vercel.app')
+    expect(validateStartup().find((p) => p.variable === 'NEXT_PUBLIC_APP_URL')).toBeUndefined()
   })
 })

@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server'
 import { isDemoMode, isEmailAllowed } from '@/lib/config/env'
+import { localeOfPath, loginPathFor, safeRedirectPath } from '@/lib/auth/safe-redirect'
 
 /**
  * Magic-link landing.
+ *
+ * Deliberately outside the `[locale]` tree, and excluded from the proxy in
+ * `src/proxy.ts`, so it keeps the one path Supabase was told to send people to.
+ * Which language to answer in comes from `next`, not from the URL of the
+ * callback itself -- one route, three languages.
  *
  * The allowlist is re-checked here, not just when the link was requested: a
  * link is a bearer token, and the set of allowed addresses may have changed
@@ -13,14 +19,20 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const next = url.searchParams.get('next')
-  // Only same-origin paths, so the callback cannot be used as an open redirect.
-  const redirectTo = next && next.startsWith('/') ? next : '/'
+
+  // Only a same-origin path survives this, so the callback can never be used
+  // to bounce someone off the site. See `safeRedirectPath` for the spellings
+  // that a `startsWith('/')` check lets through.
+  const locale = localeOfPath(next)
+  const redirectTo = safeRedirectPath(next, `/${locale}`)
+  const backToLogin = (reason: string) =>
+    NextResponse.redirect(new URL(loginPathFor(locale, reason), url.origin))
 
   if (isDemoMode()) {
     return NextResponse.redirect(new URL(redirectTo, url.origin))
   }
   if (!code) {
-    return NextResponse.redirect(new URL('/login?error=missing_code', url.origin))
+    return backToLogin('missing_code')
   }
 
   const { createClient } = await import('@/lib/supabase/server')
@@ -28,12 +40,12 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
   if (error || !data.user?.email) {
-    return NextResponse.redirect(new URL('/login?error=exchange_failed', url.origin))
+    return backToLogin('exchange_failed')
   }
 
   if (!isEmailAllowed(data.user.email)) {
     await supabase.auth.signOut()
-    return NextResponse.redirect(new URL('/login?error=not_allowed', url.origin))
+    return backToLogin('not_allowed')
   }
 
   return NextResponse.redirect(new URL(redirectTo, url.origin))

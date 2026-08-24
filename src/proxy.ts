@@ -44,6 +44,22 @@ export function proxy(request: Parameters<typeof handleI18n>[0]) {
 }
 
 export const config = {
-  // Skip API routes, Next internals, the service worker and static files.
-  matcher: ['/((?!api|_next|_vercel|sw\\.js|manifest\\.webmanifest|.*\\..*).*)'],
+  /*
+   * Skip API routes, the auth callback, Next internals, the service worker and
+   * static files.
+   *
+   * `auth` is on that list for a reason worth stating. The callback lives at
+   * `src/app/auth/callback/route.ts`, so its only real path is
+   * `/auth/callback` -- it is not under `[locale]` and has no localized twin.
+   * With `localePrefix: 'always'`, next-intl redirects anything it is given to
+   * a prefixed URL, so letting the callback through here turned every magic
+   * link into `/ru/auth/callback`, which is a 404. The code was never
+   * exchanged, no session cookie was ever set, and the library then looked
+   * empty because RLS correctly returns nothing to a caller who is not signed
+   * in. One missing word in this regex, and the whole sign-in was dead.
+   *
+   * Localizing it instead would mean three routes handling one OAuth callback,
+   * with the locale carried in the path rather than in `next` where it belongs.
+   */
+  matcher: ['/((?!api|auth|_next|_vercel|sw\\.js|manifest\\.webmanifest|.*\\..*).*)'],
 }

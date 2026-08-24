@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { isDemoMode, serverEnv } from '@/lib/config/env'
 import type { DisplayError } from '@/lib/data/errors'
+import { safeRedirectPath } from '@/lib/auth/safe-redirect'
 import { ensureSessionId, clearSession } from '@/lib/data/demo/session'
 import { resetOverlay } from '@/lib/data/demo/overlay'
 import { readSessionId } from '@/lib/data/demo/session'
@@ -45,8 +46,9 @@ export async function signInAction(input: {
     return { ok: false, error: 'This address is not on the allowlist.', notAllowed: true }
   }
 
-  const redirectTo = typeof input.redirectTo === 'string' ? input.redirectTo : '/'
-  const safeRedirect = redirectTo.startsWith('/') ? redirectTo : '/'
+  // The same check the callback applies, for the same reason: this value ends
+  // up inside a link that travels through an inbox.
+  const safeRedirect = safeRedirectPath(input.redirectTo)
 
   try {
     const { createClient } = await import('@/lib/supabase/server')
