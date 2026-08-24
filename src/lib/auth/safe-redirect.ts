@@ -24,6 +24,29 @@ import { DEFAULT_LOCALE, LOCALES, type Locale } from '@/domain'
 /** A base no real deployment can be served from, so a match proves same-origin. */
 const PROBE_ORIGIN = 'https://impasto.invalid'
 
+/**
+ * Where the sign-in remembers the page you were heading for.
+ *
+ * Not a query parameter on the callback URL, because that URL has to match
+ * Supabase's Redirect URLs list *exactly*: an entry of
+ * `https://example.com/auth/callback` does not match
+ * `https://example.com/auth/callback?next=/ru/recipes`, and Supabase silently
+ * substitutes the Site URL instead -- so the link lands on the home page, the
+ * code is never exchanged, and no session is created. Verified against the
+ * real project, where the query-less form is honoured and the one with a query
+ * is not.
+ *
+ * A cookie sidesteps the list entirely, and costs nothing in reach: the PKCE
+ * flow already requires the link to be opened in the browser that asked for it,
+ * because the code verifier lives there too. Where that does not hold, both
+ * fall back together and the callback sends you to the home page in your own
+ * language.
+ */
+export const AUTH_NEXT_COOKIE = 'impasto_auth_next'
+
+/** Long enough to read an email, short enough not to linger. */
+export const AUTH_NEXT_MAX_AGE_SECONDS = 15 * 60
+
 /** Tabs, newlines and other control characters the URL parser would remove. */
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
 

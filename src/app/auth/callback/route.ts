@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server'
 import { isDemoMode, isEmailAllowed } from '@/lib/config/env'
-import { localeOfPath, loginPathFor, safeRedirectPath } from '@/lib/auth/safe-redirect'
+import {
+  AUTH_NEXT_COOKIE,
+  localeOfPath,
+  loginPathFor,
+  safeRedirectPath,
+} from '@/lib/auth/safe-redirect'
+
+/**
+ * The remembered destination, read straight off the request.
+ *
+ * `cookies()` from `next/headers` would work too, but the request already
+ * carries the header and this keeps the route a pure function of it.
+ */
+function readNextCookie(request: Request): string | null {
+  const header = request.headers.get('cookie')
+  if (!header) return null
+
+  for (const part of header.split(';')) {
+    const [name, ...rest] = part.trim().split('=')
+    if (name === AUTH_NEXT_COOKIE) {
+      try {
+        return decodeURIComponent(rest.join('='))
+      } catch {
+        return null
+      }
+    }
+  }
+  return null
+}
 
 /**
  * Magic-link landing.
@@ -18,18 +46,37 @@ import { localeOfPath, loginPathFor, safeRedirectPath } from '@/lib/auth/safe-re
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const next = url.searchParams.get('next')
+
+  /*
+   * Where to go afterwards, from the query if it is there and from the cookie
+   * otherwise.
+   *
+   * The cookie is the path that actually runs for a magic link: Supabase
+   * matches the callback against its Redirect URLs list exactly, so the URL it
+   * is given carries no query of ours -- only the `code` Supabase appends. The
+   * query is still read first, because a direct request may legitimately carry
+   * one, and because that is the shape anyone reading the route expects.
+   */
+  const fromQuery = url.searchParams.get('next')
+  const fromCookie = readNextCookie(request)
+  const next = fromQuery ?? fromCookie
 
   // Only a same-origin path survives this, so the callback can never be used
   // to bounce someone off the site. See `safeRedirectPath` for the spellings
   // that a `startsWith('/')` check lets through.
   const locale = localeOfPath(next)
   const redirectTo = safeRedirectPath(next, `/${locale}`)
-  const backToLogin = (reason: string) =>
-    NextResponse.redirect(new URL(loginPathFor(locale, reason), url.origin))
+
+  /** Cleared on the way out: it has done its job and should not linger. */
+  const leave = (path: string) => {
+    const response = NextResponse.redirect(new URL(path, url.origin))
+    response.cookies.delete(AUTH_NEXT_COOKIE)
+    return response
+  }
+  const backToLogin = (reason: string) => leave(loginPathFor(locale, reason))
 
   if (isDemoMode()) {
-    return NextResponse.redirect(new URL(redirectTo, url.origin))
+    return leave(redirectTo)
   }
   if (!code) {
     return backToLogin('missing_code')
@@ -48,5 +95,5 @@ export async function GET(request: Request) {
     return backToLogin('not_allowed')
   }
 
-  return NextResponse.redirect(new URL(redirectTo, url.origin))
+  return leave(redirectTo)
 }

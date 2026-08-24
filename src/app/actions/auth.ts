@@ -3,7 +3,11 @@
 import { z } from 'zod'
 import { isDemoMode, serverEnv } from '@/lib/config/env'
 import type { DisplayError } from '@/lib/data/errors'
-import { safeRedirectPath } from '@/lib/auth/safe-redirect'
+import {
+  AUTH_NEXT_COOKIE,
+  AUTH_NEXT_MAX_AGE_SECONDS,
+  safeRedirectPath,
+} from '@/lib/auth/safe-redirect'
 import { ensureSessionId, clearSession } from '@/lib/data/demo/session'
 import { resetOverlay } from '@/lib/data/demo/overlay'
 import { readSessionId } from '@/lib/data/demo/session'
@@ -50,13 +54,30 @@ export async function signInAction(input: {
   // up inside a link that travels through an inbox.
   const safeRedirect = safeRedirectPath(input.redirectTo)
 
+  // Remembered here rather than pinned to the callback URL: see
+  // AUTH_NEXT_COOKIE for why a query string there breaks the whole sign-in.
+  const { cookies } = await import('next/headers')
+  const store = await cookies()
+  store.set(AUTH_NEXT_COOKIE, safeRedirect, {
+    httpOnly: true,
+    // `lax` so the cookie still travels on the top-level navigation the email
+    // link produces, which is the only request that needs it.
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: AUTH_NEXT_MAX_AGE_SECONDS,
+  })
+
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
     const { error } = await supabase.auth.signInWithOtp({
       email: parsed.data,
       options: {
-        emailRedirectTo: `${env.appUrl}/auth/callback?next=${encodeURIComponent(safeRedirect)}`,
+        // No query string. Supabase matches this against its Redirect URLs
+        // list exactly, and anything appended makes it fall back to the Site
+        // URL -- a link that lands on the home page and never signs anyone in.
+        emailRedirectTo: `${env.appUrl}/auth/callback`,
         // The allowlist is the only way in, so a link must never create a user.
         shouldCreateUser: false,
       },
