@@ -76,3 +76,11 @@ $$;
 
 grant usage on schema public to anon, authenticated, service_role;
 grant usage on schema storage to anon, authenticated, service_role;
+
+-- Real Supabase grants this too, and without it every RLS policy that calls
+-- `auth.uid()` fails with "permission denied for schema auth" the moment a
+-- query runs as `authenticated` rather than as the superuser. Nothing noticed
+-- while the suite only ever queried as the superuser, for whom RLS -- and so
+-- these policies -- never applies.
+grant usage on schema auth to anon, authenticated, service_role;
+grant execute on all functions in schema auth to anon, authenticated, service_role;
